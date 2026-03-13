@@ -2,3 +2,9 @@ cryptography
 fastapi
 uvicorn[standard]
 pandas
+sqlalchemy
+pymysql
+openpyxl
+python-dotenv
+python-multipart
+xlrd>=2.0.1
