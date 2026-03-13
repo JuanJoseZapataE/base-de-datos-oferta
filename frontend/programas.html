@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Modulo Programas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      :root {
+        --brand: #0b6a36;
+        --brand-dark: #074b26;
+        --bg: #f2f8f4;
+      }
+      body { background: var(--bg); }
+      .container { max-width: 1250px; }
+      .head {
+        background: linear-gradient(120deg, var(--brand-dark), var(--brand));
+        color: #fff;
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .card { border: 1px solid rgba(0,0,0,0.12); }
+      table thead th { background: var(--brand-dark); color: #fff; position: sticky; top: 0; }
+      #status { font-weight: 600; color: #114f2c; }
+      .table-responsive { max-height: 65vh; }
+      td, th { font-size: 12px; vertical-align: middle; }
+    </style>
+  </head>
+  <body>
+    <div class="container my-4">
+      <div class="head d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h1 class="h4 mb-0">Modulo Programas</h1>
+          <small>Tabla independiente con carga de Excel y filtros</small>
+        </div>
+        <a href="index.html" class="btn btn-light btn-sm">Volver a Fichas</a>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <h5>Subir Excel de Programas</h5>
+        <div class="small text-muted mb-2">La fecha de corte se toma del nombre del archivo (ejemplo: <code>PE-04_20260306_15+55.xlsx</code>).</div>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-8">
+            <label class="form-label">Archivo Excel</label>
+            <input id="programasFile" type="file" class="form-control" accept=".xls,.xlsx">
+          </div>
+          <div class="col-md-4">
+            <button id="uploadProgramasBtn" class="btn btn-success w-100">Subir Excel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <h5>Subir Programas + Certificados en un solo paso</h5>
+        <div class="small text-muted mb-2">Usa este bloque si quieres cargar al mismo tiempo el Excel de programas y el Excel complementario de certificados.</div>
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-md-6">
+            <label class="form-label">Archivo Excel de programas</label>
+            <input id="programasFileCombo" type="file" class="form-control" accept=".xls,.xlsx">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Archivo Excel de certificados</label>
+            <input id="certificadosFileCombo" type="file" class="form-control" accept=".xls,.xlsx">
+          </div>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-4 ms-auto">
+            <button id="uploadProgramasCertificadosBtn" class="btn btn-primary w-100">Subir ambos (programas + certificados)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <h5>Actualizar Certificados (Excel complementario)</h5>
+        <div class="small text-muted mb-2">Cruza por numero de ficha y actualiza la columna <code>certificado</code> con el numero de aprendices certificados.</div>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-8">
+            <label class="form-label">Archivo Excel de certificados</label>
+            <input id="certificadosFile" type="file" class="form-control" accept=".xls,.xlsx">
+          </div>
+          <div class="col-md-4">
+            <button id="uploadCertificadosBtn" class="btn btn-warning w-100">Actualizar certificados</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <h5>Filtros</h5>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label">Anio (fecha de corte)</label>
+            <select id="filterYear" class="form-select">
+              <option value="">(todos)</option>
+            </select>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label">Municipio</label>
+            <select id="filterMunicipio" class="form-select">
+              <option value="">(todos)</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label">Estrategia del programa</label>
+                <select id="filterEstrategia" class="form-select">
+                  <option value="">(todas)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row g-2 align-items-end mt-2">
+          <div class="col-md-5">
+            <label class="form-label">Convenio</label>
+            <select id="filterConvenio" class="form-select">
+              <option value="">(todos)</option>
+            </select>
+          </div>
+          <div class="col-md-7 d-flex gap-2 justify-content-md-end mt-3 mt-md-0">
+            <button id="applyFiltersBtn" class="btn btn-outline-secondary">Aplicar</button>
+            <button id="clearFiltersBtn" class="btn btn-link">Limpiar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <div class="row">
+          <div class="col-md-6"><strong>Fecha de corte:</strong> <span id="fechaCorteValue">-</span></div>
+          <div class="col-md-6 text-md-end"><strong>Total registros:</strong> <span id="totalRowsValue">0</span></div>
+        </div>
+      </div>
+
+      <div id="status" class="mb-2"></div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="small text-muted">Max. 30 registros por página</div>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Paginacion programas">
+          <button id="prevPageBtn" type="button" class="btn btn-outline-secondary">Anterior</button>
+          <span id="pageInfo" class="btn btn-light disabled" style="pointer-events:none; min-width:120px;">Página 1 de 1</span>
+          <button id="nextPageBtn" type="button" class="btn btn-outline-secondary">Siguiente</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-responsive">
+          <table id="programasTable" class="table table-bordered table-sm mb-0">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script src="programas.js"></script>
+  </body>
+</html>
