@@ -1,7 +1,100 @@
 const perPage = 30;
 let items = [];
 let page = 1;
-let activeFilters = { centro: '', oferta: '', estado: '', tipo: '', nivel: '', periodo: '' };
+// Cada filtro ahora puede tener varios valores seleccionados (arrays)
+let activeFilters = { centro: [], oferta: [], estado: [], tipo: [], nivel: [], periodo: [] };
+
+function setupMultiSelect(selectId){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+
+  select.classList.add('multi-hidden-select');
+
+  // Obtener etiqueta asociada (texto encima del select)
+  let labelText = selectId;
+  const prev = select.previousElementSibling;
+  if(prev && prev.tagName === 'LABEL'){
+    labelText = (prev.textContent || '').trim();
+  }
+
+  let wrapper = select.nextElementSibling;
+  if(!wrapper || !wrapper.classList || !wrapper.classList.contains('multi-select')){
+    wrapper = document.createElement('div');
+    wrapper.className = 'multi-select mt-1';
+    wrapper.innerHTML = `
+      <button type="button" class="btn btn-outline-secondary btn-sm multi-select-toggle" data-target="${selectId}">
+        <span class="me-2">${labelText}</span>
+        <span class="multi-select-summary">(todos)</span>
+      </button>
+      <div class="multi-select-menu" data-target="${selectId}" style="display:none;"></div>
+    `;
+    select.parentNode.insertBefore(wrapper, select.nextSibling);
+
+    const toggle = wrapper.querySelector('.multi-select-toggle');
+    const menu = wrapper.querySelector('.multi-select-menu');
+    if(toggle && menu){
+      toggle.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const isOpen = menu.style.display === 'block';
+        document.querySelectorAll('.multi-select-menu').forEach(m => { m.style.display = 'none'; });
+        menu.style.display = isOpen ? 'none' : 'block';
+      });
+    }
+  }
+
+  const menu = wrapper.querySelector('.multi-select-menu');
+  if(!menu) return;
+
+  // Reconstruir la lista de opciones con checkboxes
+  menu.innerHTML = '';
+  const options = Array.from(select.options || []);
+  options.forEach((opt, idx) => {
+    const value = (opt.value || '').toString();
+    if(value === '') return; // saltar opción "(todos)"
+    const id = `${selectId}_opt_${idx}`;
+    const row = document.createElement('div');
+    row.className = 'multi-select-option';
+    row.innerHTML = `
+      <input type="checkbox" id="${id}">
+      <label for="${id}" class="mb-0">${opt.text}</label>
+    `;
+    const cb = row.querySelector('input[type="checkbox"]');
+    if(cb){
+      cb.checked = opt.selected;
+      cb.dataset.value = value;
+      cb.addEventListener('change', ()=>{
+        opt.selected = cb.checked;
+        // actualizar resumen y filtros activos
+        updateMultiSelectSummary(selectId);
+        readFilters();
+        page = 1;
+        render();
+      });
+    }
+    menu.appendChild(row);
+  });
+
+  updateMultiSelectSummary(selectId);
+}
+
+function updateMultiSelectSummary(selectId){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+  const wrapper = select.nextElementSibling;
+  if(!wrapper || !wrapper.classList || !wrapper.classList.contains('multi-select')) return;
+  const summaryEl = wrapper.querySelector('.multi-select-summary');
+  if(!summaryEl) return;
+
+  const options = Array.from(select.options || []).filter(o => o.value !== '');
+  const selected = options.filter(o => o.selected);
+  if(!selected.length){
+    summaryEl.textContent = '(todos)';
+  }else if(selected.length === 1){
+    summaryEl.textContent = selected[0].text;
+  }else{
+    summaryEl.textContent = `${selected.length} seleccionados`;
+  }
+}
 let activeSearch = '';
 let lastSearchSource = '';
 let lastTotalCount = 0;
@@ -55,14 +148,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const clearBtn = document.getElementById('clearFiltersBtn');
   if(clearBtn){
     clearBtn.addEventListener('click', ()=>{
-    const fc = document.getElementById('filterCentro'); if(fc) fc.value='';
-    const fo = document.getElementById('filterOferta'); if(fo) fo.value='';
-    const ft = document.getElementById('filterTipo'); if(ft) ft.value='';
-    const fn = document.getElementById('filterNivel'); if(fn) fn.value='';
-    const fe = document.getElementById('filterEstado'); if(fe) fe.value='';
-    const fp = document.getElementById('filterPeriodo'); if(fp) fp.value='';
+    const ids = ['filterCentro','filterOferta','filterTipo','filterNivel','filterEstado','filterPeriodo'];
+    ids.forEach(id => {
+      const sel = document.getElementById(id);
+      if(sel){
+        Array.from(sel.options || []).forEach(o => { o.selected = false; });
+        updateMultiSelectSummary(id);
+      }
+    });
     const s = document.getElementById('searchInput'); if(s) s.value='';
-    readFilters(); page=1; render();
+    activeFilters = { centro: [], oferta: [], estado: [], tipo: [], nivel: [], periodo: [] };
+    page=1; render();
     });
   }
   const searchEl = document.getElementById('searchInput');
@@ -105,6 +201,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
   // Iniciar polling para detectar nuevos registros en segundo plano
   startPolling();
+
+  // Cerrar menús de multi-select al hacer clic fuera
+  document.addEventListener('click', (ev)=>{
+    const target = ev.target;
+    if(!target.closest || !target.closest('.multi-select')){
+      document.querySelectorAll('.multi-select-menu').forEach(m => { m.style.display = 'none'; });
+    }
+  });
 });
 
 async function loadAll(){
@@ -354,12 +458,12 @@ async function uploadAllExcels(){
 
 function buildExportUrl(){
   const params = new URLSearchParams();
-  if(activeFilters.centro) params.set('centro', activeFilters.centro);
-  if(activeFilters.oferta) params.set('oferta', activeFilters.oferta);
-  if(activeFilters.estado) params.set('estado', activeFilters.estado);
-  if(activeFilters.tipo) params.set('tipo', activeFilters.tipo);
-  if(activeFilters.nivel) params.set('nivel', activeFilters.nivel);
-  if(activeFilters.periodo) params.set('periodo', activeFilters.periodo);
+  if(activeFilters.centro && activeFilters.centro.length) params.set('centro', activeFilters.centro.join(','));
+  if(activeFilters.oferta && activeFilters.oferta.length) params.set('oferta', activeFilters.oferta.join(','));
+  if(activeFilters.estado && activeFilters.estado.length) params.set('estado', activeFilters.estado.join(','));
+  if(activeFilters.tipo && activeFilters.tipo.length) params.set('tipo', activeFilters.tipo.join(','));
+  if(activeFilters.nivel && activeFilters.nivel.length) params.set('nivel', activeFilters.nivel.join(','));
+  if(activeFilters.periodo && activeFilters.periodo.length) params.set('periodo', activeFilters.periodo.join(','));
   if(activeSearch) params.set('search', activeSearch);
   const q = params.toString();
   return `${API_BASE}/fichas/export${q ? `?${q}` : ''}`;
@@ -416,29 +520,37 @@ async function exportFilteredExcel(){
 
 function getFilteredItems(){
   return items.filter(row => {
-    if(activeFilters.centro){
+    if(activeFilters.centro && activeFilters.centro.length){
       const v = (row.centro_formacion || '').toString().trim();
-      if(v.toLowerCase() !== activeFilters.centro.toLowerCase()) return false;
+      const lv = v.toLowerCase();
+      const allowed = activeFilters.centro.map(c => c.toString().trim().toLowerCase());
+      if(!allowed.includes(lv)) return false;
     }
-    if(activeFilters.oferta){
+    if(activeFilters.oferta && activeFilters.oferta.length){
       const v = (row.oferta || '').toString();
-      if(v !== activeFilters.oferta) return false;
+      if(!activeFilters.oferta.includes(v)) return false;
     }
-    if(activeFilters.estado){
+    if(activeFilters.estado && activeFilters.estado.length){
       const v = (row.estado_ficha || '').toString().trim();
-      if(v.toLowerCase() !== activeFilters.estado.toLowerCase()) return false;
+      const lv = v.toLowerCase();
+      const allowed = activeFilters.estado.map(e => e.toString().trim().toLowerCase());
+      if(!allowed.includes(lv)) return false;
     }
-    if(activeFilters.tipo){
+    if(activeFilters.tipo && activeFilters.tipo.length){
       const v = (row.tipo || '').toString().trim();
-      if(v.toLowerCase() !== activeFilters.tipo.toLowerCase()) return false;
+      const lv = v.toLowerCase();
+      const allowed = activeFilters.tipo.map(t => t.toString().trim().toLowerCase());
+      if(!allowed.includes(lv)) return false;
     }
-    if(activeFilters.nivel){
+    if(activeFilters.nivel && activeFilters.nivel.length){
       const v = (row.nivel_formacion || '').toString().trim();
-      if(v.toLowerCase() !== activeFilters.nivel.toLowerCase()) return false;
+      const lv = v.toLowerCase();
+      const allowed = activeFilters.nivel.map(n => n.toString().trim().toLowerCase());
+      if(!allowed.includes(lv)) return false;
     }
-    if(activeFilters.periodo){
+    if(activeFilters.periodo && activeFilters.periodo.length){
       const v = (row.periodo || '').toString().trim();
-      if(v !== activeFilters.periodo) return false;
+      if(!activeFilters.periodo.includes(v)) return false;
     }
     if(activeSearch){
       const denom = (row.denominacion_programa || '').toString().toLowerCase();
@@ -538,7 +650,14 @@ function render(){
   if(lastBtn) lastBtn.disabled = page >= totalPages;
   // Mostrar conteo dinámico: cuántos se muestran y total
   const total = items.length || 0;
-  const anyFilter = Boolean(activeFilters.centro || activeFilters.oferta || activeFilters.estado || activeFilters.tipo || activeFilters.nivel || activeFilters.periodo);
+  const anyFilter = Boolean(
+    (activeFilters.centro && activeFilters.centro.length) ||
+    (activeFilters.oferta && activeFilters.oferta.length) ||
+    (activeFilters.estado && activeFilters.estado.length) ||
+    (activeFilters.tipo && activeFilters.tipo.length) ||
+    (activeFilters.nivel && activeFilters.nivel.length) ||
+    (activeFilters.periodo && activeFilters.periodo.length)
+  );
   if(anyFilter){
     setStatus(`Mostrando ${filtered.length} de ${total} registros (filtrados)`);
   } else {
@@ -696,12 +815,18 @@ function readFilters(){
   const fn = document.getElementById('filterNivel');
   const fe = document.getElementById('filterEstado');
   const fp = document.getElementById('filterPeriodo');
-  activeFilters.centro = fc ? fc.value.trim() : '';
-  activeFilters.oferta = fo ? fo.value : '';
-  activeFilters.tipo = ft ? ft.value : '';
-  activeFilters.nivel = fn ? fn.value : '';
-  activeFilters.estado = fe ? fe.value.trim() : '';
-  activeFilters.periodo = fp ? fp.value : '';
+  function getSelectedValues(sel){
+    if(!sel) return [];
+    return Array.from(sel.selectedOptions || [])
+      .map(o => (o.value || '').toString().trim())
+      .filter(v => v !== '');
+  }
+  activeFilters.centro = getSelectedValues(fc);
+  activeFilters.oferta = getSelectedValues(fo);
+  activeFilters.tipo = getSelectedValues(ft);
+  activeFilters.nivel = getSelectedValues(fn);
+  activeFilters.estado = getSelectedValues(fe);
+  activeFilters.periodo = getSelectedValues(fp);
   // Leer también la búsqueda global para mantener consistencia al aplicar/limpiar filtros
   const s = document.getElementById('searchInput');
   activeSearch = s ? (s.value || '').toString().trim() : '';
@@ -738,6 +863,11 @@ function populateFilterOptions(){
   if(st){ st.options.length = 1; tipoArr.forEach(v=>{ const o = document.createElement('option'); o.value = v; o.text = v; st.appendChild(o); }); }
   if(sn){ sn.options.length = 1; nivelArr.forEach(v=>{ const o = document.createElement('option'); o.value = v; o.text = v; sn.appendChild(o); }); }
   if(sp){ sp.options.length = 1; periodoArr.forEach(v=>{ const o = document.createElement('option'); o.value = v; o.text = v; sp.appendChild(o); }); }
+
+  // Construir/actualizar los multi-selects personalizados a partir de los selects
+  ['filterCentro','filterEstado','filterTipo','filterNivel','filterPeriodo','filterOferta'].forEach(id => {
+    setupMultiSelect(id);
+  });
 }
 
 // bulk-update UI removed — function applyUpdateToVisible deleted

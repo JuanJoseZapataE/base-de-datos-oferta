@@ -1302,7 +1302,7 @@ def export_fichas_excel(
     estado: Optional[str] = None,
     tipo: Optional[str] = None,
     nivel: Optional[str] = None,
-    periodo: Optional[int] = None,
+    periodo: Optional[str] = None,
     search: Optional[str] = None,
 ):
     """Exporta Excel con los filtros activos (mismos criterios del frontend)."""
@@ -1310,23 +1310,89 @@ def export_fichas_excel(
     params = {}
 
     if centro:
-        clauses.append('LOWER(TRIM(centro_formacion)) = :centro')
-        params['centro'] = centro.strip().lower()
+        centros = [c.strip().lower() for c in str(centro).split(',') if c.strip()]
+        if centros:
+            if len(centros) == 1:
+                clauses.append('LOWER(TRIM(centro_formacion)) = :centro_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(centros):
+                    key = f'centro_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(centro_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'centro_0' not in params and centros:
+                params['centro_0'] = centros[0]
     if oferta:
-        clauses.append('oferta = :oferta')
-        params['oferta'] = normalize_oferta(oferta)
+        ofertas = [normalize_oferta(o) for o in str(oferta).split(',') if str(o).strip()]
+        if ofertas:
+            if len(ofertas) == 1:
+                clauses.append('oferta = :oferta_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(ofertas):
+                    key = f'oferta_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('oferta IN (' + ','.join(in_keys) + ')')
+            if 'oferta_0' not in params and ofertas:
+                params['oferta_0'] = ofertas[0]
     if estado:
-        clauses.append('LOWER(TRIM(estado_ficha)) = :estado')
-        params['estado'] = estado.strip().lower()
+        estados = [e.strip().lower() for e in str(estado).split(',') if e.strip()]
+        if estados:
+            if len(estados) == 1:
+                clauses.append('LOWER(TRIM(estado_ficha)) = :estado_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(estados):
+                    key = f'estado_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(estado_ficha)) IN (' + ','.join(in_keys) + ')')
+            if 'estado_0' not in params and estados:
+                params['estado_0'] = estados[0]
     if tipo:
-        clauses.append('LOWER(TRIM(tipo)) = :tipo')
-        params['tipo'] = normalize_tipo(tipo).strip().lower()
+        tipos = [normalize_tipo(t).strip().lower() for t in str(tipo).split(',') if t.strip()]
+        if tipos:
+            if len(tipos) == 1:
+                clauses.append('LOWER(TRIM(tipo)) = :tipo_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(tipos):
+                    key = f'tipo_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(tipo)) IN (' + ','.join(in_keys) + ')')
+            if 'tipo_0' not in params and tipos:
+                params['tipo_0'] = tipos[0]
     if nivel:
-        clauses.append('LOWER(TRIM(nivel_formacion)) = :nivel')
-        params['nivel'] = nivel.strip().lower()
+        niveles = [n.strip().lower() for n in str(nivel).split(',') if n.strip()]
+        if niveles:
+            if len(niveles) == 1:
+                clauses.append('LOWER(TRIM(nivel_formacion)) = :nivel_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(niveles):
+                    key = f'nivel_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(nivel_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'nivel_0' not in params and niveles:
+                params['nivel_0'] = niveles[0]
     if periodo is not None:
-        clauses.append('periodo = :periodo')
-        params['periodo'] = int(periodo)
+        periodos = [p.strip() for p in str(periodo).split(',') if p.strip()]
+        if periodos:
+            if len(periodos) == 1:
+                clauses.append('periodo = :periodo_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(periodos):
+                    key = f'periodo_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = int(val)
+                clauses.append('periodo IN (' + ','.join(in_keys) + ')')
+            if 'periodo_0' not in params and periodos:
+                params['periodo_0'] = int(periodos[0])
     if search:
         clauses.append('LOWER(COALESCE(denominacion_programa, "")) LIKE :search')
         params['search'] = f"%{search.strip().lower()}%"
