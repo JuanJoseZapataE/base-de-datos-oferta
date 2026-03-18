@@ -24,6 +24,57 @@
       #status { font-weight: 600; color: #114f2c; }
       .table-responsive { max-height: 65vh; }
       td, th { font-size: 12px; vertical-align: middle; }
+
+      #themeToggle {
+        border: 1px solid rgba(255,255,255,0.45);
+        color: #fff;
+        background: rgba(0,0,0,0.16);
+      }
+      #themeToggle:hover { background: rgba(0,0,0,0.26); }
+
+      /* Modo oscuro compartido con el resto de modulos */
+      body.dark-mode {
+        background: #0f1812;
+        color: #f2fff6;
+      }
+      body.dark-mode .head {
+        background: linear-gradient(120deg, #0a3d1f, #0b6a36);
+      }
+      body.dark-mode .card {
+        background: #18261d;
+        color: #f2fff6;
+      }
+      body.dark-mode table thead th {
+        background: #0a3d1f;
+        color: #e9ffee;
+      }
+      body.dark-mode .table-responsive {
+        background: #121c15;
+      }
+      body.dark-mode td,
+      body.dark-mode th {
+        color: #f2fff6;
+      }
+      body.dark-mode #status {
+        color: #bfe8ca;
+      }
+
+      /* Selector de archivo Excel compacto con icono */
+      .excel-picker {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        border-radius: 10px;
+        border: 1px dashed rgba(0,0,0,0.28);
+        background: rgba(0,120,50,0.06) url('src/spreadsheet-icon.svg') center/40px 40px no-repeat;
+        cursor: pointer;
+      }
+      .excel-picker input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -33,53 +84,107 @@
           <h1 class="h4 mb-0">Modulo Programas</h1>
           <small>Tabla independiente con carga de Excel y filtros</small>
         </div>
-        <a href="index.html" class="btn btn-light btn-sm">Volver a Fichas</a>
-      </div>
-
-      <div class="card p-3 mb-3">
-        <h5>Subir Excel de Programas</h5>
-        <div class="small text-muted mb-2">La fecha de corte se toma del nombre del archivo (ejemplo: <code>PE-04_20260306_15+55.xlsx</code>).</div>
-        <div class="row g-2 align-items-end">
-          <div class="col-md-8">
-            <label class="form-label">Archivo Excel</label>
-            <input id="programasFile" type="file" class="form-control" accept=".xls,.xlsx">
-          </div>
-          <div class="col-md-4">
-            <button id="uploadProgramasBtn" class="btn btn-success w-100">Subir Excel</button>
-          </div>
+        <div class="d-flex gap-2 align-items-center">
+          <a href="index.html" class="btn btn-outline-light btn-sm">Modulo Fichas</a>
+          <a href="programas.html" class="btn btn-light btn-sm">Modulo Programas</a>
+          <a href="indicativa.html" class="btn btn-outline-light btn-sm">Modulo Indicativa</a>
+          <button id="themeToggle" class="btn btn-sm" type="button">🌙 Modo oscuro</button>
         </div>
       </div>
 
-      <div class="card p-3 mb-3">
-        <h5>Subir Programas + Certificados en un solo paso</h5>
-        <div class="small text-muted mb-2">Usa este bloque si quieres cargar al mismo tiempo el Excel de programas y el Excel complementario de certificados.</div>
-        <div class="row g-2 align-items-end mb-2">
-          <div class="col-md-6">
-            <label class="form-label">Archivo Excel de programas</label>
-            <input id="programasFileCombo" type="file" class="form-control" accept=".xls,.xlsx">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Archivo Excel de certificados</label>
-            <input id="certificadosFileCombo" type="file" class="form-control" accept=".xls,.xlsx">
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <div class="card p-3 h-100">
+            <h5>Subir Excel de Programas</h5>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-8">
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>Archivo Excel</span>
+                  <small id="programasFileCount" class="text-muted ms-2"></small>
+                </label>
+                <div class="excel-picker">
+                  <input id="programasFile" type="file" class="form-control" accept=".xls,.xlsx,.xml" multiple data-counter-target="programasFileCount">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <button id="uploadProgramasBtn" class="btn btn-success w-100">Subir Excel</button>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="row g-2">
-          <div class="col-md-4 ms-auto">
-            <button id="uploadProgramasCertificadosBtn" class="btn btn-primary w-100">Subir ambos (programas + certificados)</button>
-          </div>
-        </div>
-      </div>
 
-      <div class="card p-3 mb-3">
-        <h5>Actualizar Certificados (Excel complementario)</h5>
-        <div class="small text-muted mb-2">Cruza por numero de ficha y actualiza la columna <code>certificado</code> con el numero de aprendices certificados.</div>
-        <div class="row g-2 align-items-end">
-          <div class="col-md-8">
-            <label class="form-label">Archivo Excel de certificados</label>
-            <input id="certificadosFile" type="file" class="form-control" accept=".xls,.xlsx">
+        <div class="col-md-6">
+          <div class="card p-3 h-100">
+            <h5>Subir Programas Hist&oacute;ricos</h5>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-6">
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>Archivos Excel hist&oacute;ricos de programas</span>
+                  <small id="programasHistoricosFileCount" class="text-muted ms-2"></small>
+                </label>
+                <div class="excel-picker">
+                  <input id="programasHistoricosFile" type="file" class="form-control" accept=".xls,.xlsx,.xml" multiple data-counter-target="programasHistoricosFileCount">
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">A&ntilde;o hist&oacute;rico</label>
+                <input id="historicoYear" type="number" class="form-control" min="1900" max="2100" placeholder="Ej: 2018">
+              </div>
+              <div class="col-md-3">
+                <button id="uploadProgramasHistoricosBtn" class="btn btn-secondary w-100">Subir hist&oacute;ricos</button>
+              </div>
+            </div>
           </div>
-          <div class="col-md-4">
-            <button id="uploadCertificadosBtn" class="btn btn-warning w-100">Actualizar certificados</button>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card p-3 h-100">
+            <h5>Subir Programas + Certificados</h5>
+            <div class="row g-2 align-items-end mb-2">
+              <div class="col-md-6">
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>Archivo Excel de programas</span>
+                  <small id="programasFileComboCount" class="text-muted ms-2"></small>
+                </label>
+                <div class="excel-picker">
+                  <input id="programasFileCombo" type="file" class="form-control" accept=".xls,.xlsx,.xml" multiple data-counter-target="programasFileComboCount">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>Archivo Excel de certificados</span>
+                  <small id="certificadosFileComboCount" class="text-muted ms-2"></small>
+                </label>
+                <div class="excel-picker">
+                  <input id="certificadosFileCombo" type="file" class="form-control" accept=".xls,.xlsx,.xml" multiple data-counter-target="certificadosFileComboCount">
+                </div>
+              </div>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-6 ms-auto">
+                <button id="uploadProgramasCertificadosBtn" class="btn btn-primary w-100">Subir ambos (programas + certificados)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card p-3 h-100">
+            <h5>Actualizar Certificados</h5>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-8">
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>Archivo Excel de certificados</span>
+                  <small id="certificadosFileCount" class="text-muted ms-2"></small>
+                </label>
+                <div class="excel-picker">
+                  <input id="certificadosFile" type="file" class="form-control" accept=".xls,.xlsx,.xml" multiple data-counter-target="certificadosFileCount">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <button id="uploadCertificadosBtn" class="btn btn-warning w-100">Actualizar certificados</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -111,15 +216,32 @@
           </div>
         </div>
         <div class="row g-2 align-items-end mt-2">
-          <div class="col-md-5">
+          <div class="col-md-4">
+            <label class="form-label">N&uacute;mero de ficha</label>
+            <input id="filterNumeroFicha" type="number" class="form-control" placeholder="Ej: 2175">
+          </div>
+          <div class="col-md-4">
             <label class="form-label">Convenio</label>
             <select id="filterConvenio" class="form-select">
               <option value="">(todos)</option>
             </select>
           </div>
-          <div class="col-md-7 d-flex gap-2 justify-content-md-end mt-3 mt-md-0">
+          <div class="col-md-4">
+            <label class="form-label">Vigencia (año inicio)</label>
+            <select id="filterVigencia" class="form-select">
+              <option value="">(todas)</option>
+            </select>
+          </div>
+          <div class="col-md-4 d-flex flex-column flex-md-row gap-2 justify-content-md-end mt-3 mt-md-0">
+            <div class="form-check me-md-3">
+              <input class="form-check-input" type="checkbox" id="filterSoloCertificados">
+              <label class="form-check-label" for="filterSoloCertificados">
+                Solo con certificados
+              </label>
+            </div>
             <button id="applyFiltersBtn" class="btn btn-outline-secondary">Aplicar</button>
             <button id="clearFiltersBtn" class="btn btn-link">Limpiar</button>
+            <button id="exportProgramasBtn" class="btn btn-success btn-sm">Exportar Excel</button>
           </div>
         </div>
       </div>
@@ -131,7 +253,10 @@
         </div>
       </div>
 
-      <div id="status" class="mb-2"></div>
+      <div id="status" class="mb-1"></div>
+      <div id="uploadProgressContainer" class="progress mb-2" style="height:6px; display:none;">
+        <div id="uploadProgressBar" class="progress-bar bg-success" role="progressbar" style="width:0%;" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+      </div>
       <div class="d-flex justify-content-between align-items-center mb-2">
         <div class="small text-muted">Max. 30 registros por página</div>
         <div class="btn-group btn-group-sm" role="group" aria-label="Paginacion programas">

@@ -7,13 +7,15 @@ from typing import List, Optional
 import pandas as pd
 import io
 import os
-from datetime import datetime
+from datetime import datetime, date, time
 import re
 import unicodedata
+import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 # Cargar .env desde la carpeta del paquete (asegura carga aunque el cwd sea el padre)
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 from sqlalchemy import create_engine, text, bindparam
+from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
@@ -67,6 +69,36 @@ PROGRAMAS_COLUMNS = [
 ]
 
 
+INDICATIVA_COLUMNS = [
+    'id_indicativa',
+    'regional',
+    'codigo_de_centro',
+    'nombre_sede',
+    'vigencia',
+    'periodo_oferta',
+    'codigo_programa',
+    'version',
+    'codigo_version',
+    'nombre_programa',
+    'nivel_de_formacion',
+    'modalidad',
+    'mes_inicio',
+    'cupos',
+    'ano_termina',
+    'departamento_formacion',
+    'codigo_dane_departamento',
+    'municipio_formacion',
+    'codigo_dane_municipio',
+    'gira_tecnica',
+    'programa_fic',
+    'tipo_de_oferta',
+    'persona_registra',
+    'fecha_de_registro',
+    'tipo_de_institucion',
+    'nivel_institucion',
+]
+
+
 def ensure_programas_table():
     create_sql = """
     CREATE TABLE IF NOT EXISTS programas_formacion (
@@ -112,6 +144,48 @@ def ensure_programas_table():
 
 
 ensure_programas_table()
+
+
+def ensure_indicativa_table():
+    create_sql = """
+    CREATE TABLE IF NOT EXISTS indicativa (
+        id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        id_indicativa BIGINT NULL,
+        regional VARCHAR(150) NULL,
+        codigo_de_centro INT NULL,
+        nombre_sede VARCHAR(255) NULL,
+        vigencia INT NULL,
+        periodo_oferta VARCHAR(100) NULL,
+        codigo_programa BIGINT NULL,
+        version INT NULL,
+        codigo_version VARCHAR(50) NULL,
+        nombre_programa VARCHAR(255) NULL,
+        nivel_de_formacion VARCHAR(150) NULL,
+        modalidad VARCHAR(150) NULL,
+        mes_inicio VARCHAR(50) NULL,
+        cupos INT NULL,
+        ano_termina INT NULL,
+        departamento_formacion VARCHAR(150) NULL,
+        codigo_dane_departamento VARCHAR(20) NULL,
+        municipio_formacion VARCHAR(150) NULL,
+        codigo_dane_municipio VARCHAR(20) NULL,
+        gira_tecnica VARCHAR(50) NULL,
+        programa_fic VARCHAR(50) NULL,
+        tipo_de_oferta VARCHAR(150) NULL,
+        persona_registra VARCHAR(150) NULL,
+        fecha_de_registro DATETIME NULL,
+        tipo_de_institucion VARCHAR(150) NULL,
+        nivel_institucion VARCHAR(150) NULL,
+        INDEX idx_indicativa_vigencia (vigencia),
+        INDEX idx_indicativa_periodo (periodo_oferta),
+        INDEX idx_indicativa_centro (nombre_sede)
+    )
+    """
+    with engine.begin() as conn:
+        conn.execute(text(create_sql))
+
+
+ensure_indicativa_table()
 
 
 def normalize_cols(cols):
@@ -241,6 +315,21 @@ def export_header_label(column_name: str) -> str:
     return ' '.join(word.capitalize() for word in s.split())
 
 
+def export_header_label_indicativa(column_name: str) -> str:
+    if not column_name:
+        return ''
+    mapping = {
+        'nombre_sede': 'Centro de formacion',
+        'nivel_de_formacion': 'Nivel de formacion',
+        'nombre_programa': 'Denominacion del programa',
+        'periodo_oferta': 'Periodo oferta',
+        'tipo_de_oferta': 'Tipo oferta',
+    }
+    if column_name in mapping:
+        return mapping[column_name]
+    return export_header_label(column_name)
+
+
 def get_first_existing_column(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
     existing = set(df.columns)
     for c in candidates:
@@ -311,6 +400,98 @@ def read_excel_no_header(content: bytes) -> pd.DataFrame:
         return pd.read_excel(io.BytesIO(content), header=None)
 
 
+def read_spreadsheetml_xml(content: bytes) -> pd.DataFrame:
+    """Lee un archivo XML de Excel 2003 (SpreadsheetML) como tabla.
+
+    Extrae la primera hoja (Worksheet/Table) y construye un DataFrame usando
+    la primera fila como encabezados y el resto como filas de datos.
+    """
+    try:
+        root = ET.fromstring(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'XML de Excel invalido: {e}')
+
+    ws = root.find('.//{*}Worksheet')
+    if ws is None:
+        raise HTTPException(status_code=400, detail='No se encontro ningun Worksheet en el XML de Excel.')
+
+    table = ws.find('.//{*}Table')
+    if table is None:
+        raise HTTPException(status_code=400, detail='No se encontro ninguna tabla (Table) en el XML de Excel.')
+
+    rows_raw = []
+    for row in table.findall('.//{*}Row'):
+        # Soportar celdas con atributo ss:Index (saltos de columnas).
+        cells: list[str] = []
+        col_pos = 0
+        for cell in row.findall('.//{*}Cell'):
+            idx_attr = None
+            for attr_name, attr_val in cell.attrib.items():
+                if attr_name.endswith('Index'):
+                    idx_attr = attr_val
+                    break
+            if idx_attr is not None:
+                try:
+                    col_pos = int(idx_attr) - 1
+                except Exception:
+                    pass
+
+            data_el = cell.find('.//{*}Data')
+            text = '' if data_el is None or data_el.text is None else str(data_el.text)
+
+            if len(cells) <= col_pos:
+                cells.extend([''] * (col_pos - len(cells)))
+                cells.append(text)
+            else:
+                cells[col_pos] = text
+
+            col_pos += 1
+
+        # Ignorar filas completamente vacias
+        if any(val.strip() for val in cells):
+            rows_raw.append(cells)
+
+    if not rows_raw:
+        return pd.DataFrame()
+
+    # Detectar la fila que realmente contiene los encabezados (no el titulo tipo "PE-04_").
+    # Usamos palabras clave tipicas de tus archivos: IDENTIFICADOR_FICHA, NUMERO_FICHA,
+    # NOMBRE_PROGRAMA_FORMACION, etc.
+    header_aliases = [
+        'identificador_ficha', 'numero_ficha', 'n_ficha', 'codigo_ficha', 'cod_ficha',
+        'nombre_programa_formacion', 'denominacion_programa',
+        'centro_formacion', 'ciudad_municipio', 'nivel_formacion',
+    ]
+    alias_pool = set(normalize_col_name(a) for a in header_aliases)
+
+    best_idx = 0
+    best_score = -1
+    scan_limit = min(40, len(rows_raw))
+    for idx in range(scan_limit):
+        row = rows_raw[idx]
+        # normalizar cada celda como si fuera nombre de columna
+        norm_cells = set(normalize_col_name(c) for c in row if c is not None)
+        score = len(norm_cells.intersection(alias_pool))
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+
+    header = rows_raw[best_idx]
+    data_rows = rows_raw[best_idx + 1 :]
+    num_cols = len(header)
+
+    normalized_rows = []
+    for r in data_rows:
+        if len(r) < num_cols:
+            r = r + [''] * (num_cols - len(r))
+        elif len(r) > num_cols:
+            r = r[:num_cols]
+        normalized_rows.append(r)
+
+    df = pd.DataFrame(normalized_rows, columns=header)
+    return df
+
+
 def read_excel_with_header_row(content: bytes, header_row: int) -> pd.DataFrame:
     try:
         return pd.read_excel(io.BytesIO(content), header=header_row, engine='openpyxl')
@@ -332,13 +513,229 @@ def extract_fecha_corte_from_filename(filename: str):
         return None
 
 
+def extract_fecha_corte_from_excel_content(content: bytes):
+    """Intenta obtener fecha de corte desde el contenido del archivo Excel.
+
+    Caso de uso: archivos que no traen fecha en el nombre pero si en una
+    celda fija, por ejemplo A3 (fila 3, columna 1).
+    """
+    # Leer el libro con openpyxl para acceder directamente a la celda A3
+    try:
+        wb = load_workbook(io.BytesIO(content), data_only=True)
+    except Exception:
+        return None
+
+    try:
+        ws = wb.active
+    except Exception:
+        return None
+
+    try:
+        cell = ws['A3']
+    except Exception:
+        return None
+
+    value = cell.value
+    if value is None:
+        return None
+
+    # 1) Si ya viene como datetime/fecha de Excel, usarla directamente.
+    if isinstance(value, datetime):
+        return value.date()
+
+    # 2) Intentar parseo generico con pandas (por si es texto tipo "2022-12-01").
+    s = str(value).strip()
+    try:
+        ts = pd.to_datetime(s, dayfirst=True, errors='coerce')
+    except Exception:
+        ts = None
+    if ts is not None and not pd.isna(ts):
+        return ts.date()
+
+    # 3) Buscar patrones numericos dentro del texto.
+    #    Primero AAAAMMDD (8 digitos), luego AAAAMM (6 digitos).
+    m8 = re.search(r'(\d{8})', s)
+    if m8:
+        raw = m8.group(1)
+        try:
+            dt = datetime.strptime(raw, '%Y%m%d')
+            return dt.date()
+        except Exception:
+            pass
+
+    m6 = re.search(r'(\d{6})', s)
+    if m6:
+        raw = m6.group(1)
+        try:
+            year = int(raw[:4])
+            month = int(raw[4:6])
+            dt = datetime(year, month, 1)
+            return dt.date()
+        except Exception:
+            pass
+    return None
+
+
+def _parse_excel_fecha_value(value) -> Optional[date]:
+    """Intenta convertir un valor de celda de Excel a date, asumiendo formato dia/mes/año cuando es texto."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    s = str(value).strip()
+    if not s:
+        return None
+    # Intentar formato explicito dd/mm/yyyy primero (requerido por el usuario)
+    for fmt in ('%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', '%Y/%m/%d'):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except Exception:
+            continue
+    # Fallback generico usando pandas (acepta mas variantes)
+    try:
+        ts = pd.to_datetime(s, dayfirst=True, errors='coerce')
+        if ts is not None and not pd.isna(ts):
+            return ts.date()
+    except Exception:
+        pass
+    # Patrones numericos: ddmmyyyy o yyyymmdd dentro del texto
+    m8 = re.search(r'(\d{8})', s)
+    if m8:
+        raw = m8.group(1)
+        for fmt in ('%d%m%Y', '%Y%m%d'):
+            try:
+                return datetime.strptime(raw, fmt).date()
+            except Exception:
+                continue
+    return None
+
+
+def _parse_excel_hora_value(value) -> Optional[time]:
+    """Intenta convertir un valor de celda de Excel a time (HH:MM[:SS])."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.time().replace(microsecond=0)
+    if isinstance(value, time):
+        return value.replace(microsecond=0)
+    s = str(value).strip()
+    if not s:
+        return None
+    # Intentar formatos comunes de hora
+    for fmt in ('%H:%M', '%H:%M:%S'):
+        try:
+            return datetime.strptime(s, fmt).time().replace(microsecond=0)
+        except Exception:
+            continue
+    # Fallback: si viene como numero de Excel (fraccion del dia), intentar convertir
+    try:
+        # Excel almacena horas como fraccion del dia; multiplicar por 24 para horas
+        num = float(s)
+        total_seconds = int(round(num * 24 * 3600))
+        hh = (total_seconds // 3600) % 24
+        mm = (total_seconds % 3600) // 60
+        ss = total_seconds % 60
+        return time(hour=hh, minute=mm, second=ss)
+    except Exception:
+        return None
+
+
+def extract_fecha_reporte_from_filename_fichas(filename: str) -> Optional[date]:
+    """Extrae fecha de reporte desde nombre tipo CCX_17032026.xlsx o CCX_17-03-2026.xlsx.
+
+    Estructura esperada: (siglas_centro)_(fecha_reporte)
+    """
+    if not filename:
+        return None
+    name = os.path.splitext(os.path.basename(filename))[0]
+    parts = name.split('_')
+    candidate = None
+    if len(parts) >= 2:
+        candidate = parts[1]
+    else:
+        # Si no hay guion bajo, buscar bloque de 8 digitos en todo el nombre
+        m = re.search(r'(\d{8})', name)
+        if m:
+            candidate = m.group(1)
+    if not candidate:
+        return None
+    s = str(candidate).strip()
+    # Normalizar separadores
+    s_norm = s.replace('-', '/').replace('.', '/').replace(' ', '/')
+    # Intentar dd/mm/yyyy
+    try:
+        return datetime.strptime(s_norm, '%d/%m/%Y').date()
+    except Exception:
+        pass
+    # Intentar ddmmyyyy (sin separadores)
+    if re.fullmatch(r'\d{8}', s):
+        for fmt in ('%d%m%Y', '%Y%m%d'):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except Exception:
+                continue
+    return None
+
+
+def extract_fecha_hora_reporte_fichas(content: bytes, filename: str):
+    """Obtiene fecha (B4) y hora (B5) del Excel de fichas o, si falta la fecha, del nombre del archivo.
+
+    - B4: fecha de reporte en formato dia/mes/año (preferido).
+    - B5: hora de reporte (HH:MM u hora de Excel).
+    - Si B4 no tiene valor interpretable, se intenta extraer la fecha desde el nombre.
+    """
+    fecha: Optional[date] = None
+    hora: Optional[time] = None
+
+    # Primero intentar leer directamente desde el contenido del Excel
+    try:
+        wb = load_workbook(io.BytesIO(content), data_only=True)
+        ws = wb.active
+        try:
+            fecha_val = ws['B4'].value
+            hora_val = ws['B5'].value
+        except Exception:
+            fecha_val = None
+            hora_val = None
+        fecha = _parse_excel_fecha_value(fecha_val)
+        hora = _parse_excel_hora_value(hora_val)
+    except Exception:
+        # Si no se puede abrir el libro, se intentara solo por nombre
+        pass
+
+    # Si la fecha sigue sin definirse, usar nombre del archivo
+    if fecha is None:
+        fecha = extract_fecha_reporte_from_filename_fichas(filename or '')
+
+    return fecha, hora
+
+
 @app.post('/upload-excel')
 async def upload_excel(file: UploadFile = File(...), periodo: Optional[int] = Form(None), oferta: Optional[str] = Form(None), tipo: Optional[str] = Form(None)):
-    if not file.filename.lower().endswith(('.xls', '.xlsx')):
-        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+    if not file.filename.lower().endswith(('.xls', '.xlsx', '.xml')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls, .xlsx o .xml')
 
     content = await file.read()
-    df = read_excel_with_header_detection(content)
+
+    # Extraer fecha y hora de reporte desde el Excel (B4/B5) o, si falta la fecha,
+    # desde el nombre del archivo. Esto permite saber de que corte es el archivo
+    # que se esta subiendo en el modulo de fichas.
+    fecha_reporte, hora_reporte = extract_fecha_hora_reporte_fichas(content, file.filename or '')
+
+    # Si es XML, intentar leerlo como tabla antes de aplicar la logica de deteccion
+    # de encabezados pensada para Excel.
+    if file.filename.lower().endswith('.xml'):
+        try:
+            df = pd.read_xml(io.BytesIO(content))
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f'No se pudo leer el XML como tabla: {e}',
+            )
+    else:
+        df = read_excel_with_header_detection(content)
 
     # Normalizar nombres de columnas
     df.columns = normalize_cols(df.columns)
@@ -475,7 +872,68 @@ async def upload_excel(file: UploadFile = File(...), periodo: Optional[int] = Fo
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error al insertar en la base de datos: {e}')
 
-    return JSONResponse({'inserted': len(df_to_insert)})
+    # Incluir en la respuesta la fecha y hora de reporte detectadas para
+    # que el frontend pueda mostrar de que archivo/corte se trata.
+    fecha_str = fecha_reporte.strftime('%d/%m/%Y') if isinstance(fecha_reporte, date) else None
+    hora_str = hora_reporte.strftime('%H:%M:%S') if isinstance(hora_reporte, time) else None
+
+    return JSONResponse({'inserted': len(df_to_insert), 'fecha_reporte': fecha_str, 'hora_reporte': hora_str})
+
+
+@app.post('/indicativa/upload-excel')
+async def upload_indicativa_excel(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(('.xls', '.xlsx', '.xml')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls, .xlsx o .xml')
+
+    content = await file.read()
+
+    # Permitir XML, igual que en otros modulos
+    if file.filename.lower().endswith('.xml'):
+        try:
+            df = pd.read_xml(io.BytesIO(content))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f'No se pudo leer el XML de indicativa como tabla: {e}')
+    else:
+        df = read_excel_basic(content)
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene filas')
+
+    # Normalizar nombres de columnas (quita acentos, pasa a minusculas, reemplaza espacios por _)
+    df.columns = normalize_cols(df.columns)
+
+    # Asegurar todas las columnas esperadas
+    df_to_insert = pd.DataFrame()
+    for col in INDICATIVA_COLUMNS:
+        if col in df.columns:
+            df_to_insert[col] = df[col]
+        else:
+            df_to_insert[col] = None
+
+    # Tipos basicos
+    for col in ['codigo_de_centro', 'vigencia', 'version', 'cupos', 'ano_termina', 'codigo_programa', 'id_indicativa']:
+        if col in df_to_insert.columns:
+            df_to_insert[col] = pd.to_numeric(df_to_insert[col], errors='coerce').astype('Int64')
+
+    # fecha_de_registro puede venir como texto o fecha de Excel
+    if 'fecha_de_registro' in df_to_insert.columns:
+        try:
+            df_to_insert['fecha_de_registro'] = pd.to_datetime(df_to_insert['fecha_de_registro'], errors='coerce')
+        except Exception:
+            pass
+
+    # Eliminar filas completamente vacias en campos clave basicos (nombre_sede y nombre_programa)
+    key_fields = ['nombre_sede', 'nombre_programa']
+    df_to_insert = df_to_insert[~df_to_insert[key_fields].isna().all(axis=1)].copy()
+    if df_to_insert.empty:
+        raise HTTPException(status_code=400, detail='No se encontraron filas validas para insertar en indicativa')
+
+    try:
+        df_to_insert.to_sql('indicativa', con=engine, if_exists='append', index=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al insertar en la tabla indicativa: {e}')
+
+    return JSONResponse({'inserted': int(len(df_to_insert))})
 
 
 @app.get('/fichas')
@@ -591,6 +1049,252 @@ def fichas_all():
     return JSONResponse(df.to_dict(orient='records'))
 
 
+@app.get('/indicativa')
+def get_indicativa(
+    page: int = 1,
+    per_page: int = 50,
+    centro: Optional[str] = None,
+    nivel: Optional[str] = None,
+    periodo_oferta: Optional[str] = None,
+):
+    """Listado paginado de la tabla indicativa para el frontend, con filtros opcionales."""
+    try:
+        page = int(page)
+    except Exception:
+        page = 1
+    try:
+        per_page = int(per_page)
+    except Exception:
+        per_page = 50
+    if page < 1:
+        page = 1
+    if per_page < 1 or per_page > 200:
+        per_page = 50
+
+    # Construir filtros
+    clauses = []
+    params: dict = {}
+    if centro:
+        clauses.append('LOWER(TRIM(nombre_sede)) = :centro')
+        params['centro'] = centro.strip().lower()
+    if nivel:
+        clauses.append('LOWER(TRIM(nivel_de_formacion)) = :nivel')
+        params['nivel'] = nivel.strip().lower()
+    if periodo_oferta:
+        clauses.append('LOWER(TRIM(periodo_oferta)) = :periodo_oferta')
+        params['periodo_oferta'] = periodo_oferta.strip().lower()
+
+    where_sql = ''
+    if clauses:
+        where_sql = ' WHERE ' + ' AND '.join(clauses)
+
+    # Contar total
+    count_sql = f'SELECT COUNT(*) FROM indicativa{where_sql}'
+    try:
+        with engine.connect() as conn:
+            total = conn.execute(text(count_sql), params).scalar() or 0
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error contando registros de indicativa: {e}')
+
+    offset = (page - 1) * per_page
+    sql = (
+        'SELECT id, nombre_sede, nivel_de_formacion, nombre_programa, '
+        'periodo_oferta, tipo_de_oferta '
+        'FROM indicativa'
+        f'{where_sql} '
+        'ORDER BY vigencia DESC, periodo_oferta ASC, nombre_sede ASC '
+        'LIMIT :limit OFFSET :offset'
+    )
+    params_data = dict(params)
+    params_data['limit'] = per_page
+    params_data['offset'] = offset
+    try:
+        df = pd.read_sql(text(sql), con=engine, params=params_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error consultando indicativa: {e}')
+
+    if not df.empty:
+        df = df.replace([float('inf'), float('-inf')], pd.NA)
+        df = df.where(pd.notna(df), None)
+
+    items = df.to_dict(orient='records') if not df.empty else []
+
+    # Renombrar claves para que ya vayan con los nombres que usara el frontend
+    mapped_items = []
+    for row in items:
+        mapped_items.append(
+            {
+                'id': row.get('id'),
+                'centro_formacion': row.get('nombre_sede'),
+                'nivel_formacion': row.get('nivel_de_formacion'),
+                'denominacion_programa': row.get('nombre_programa'),
+                'periodo_oferta': row.get('periodo_oferta'),
+                'tipo_oferta': row.get('tipo_de_oferta'),
+            }
+        )
+
+    return JSONResponse(
+        {
+            'items': mapped_items,
+            'total': int(total),
+            'page': page,
+            'per_page': per_page,
+        }
+    )
+
+
+@app.get('/indicativa/export')
+def export_indicativa_excel(
+    centro: Optional[str] = None,
+    nivel: Optional[str] = None,
+    periodo_oferta: Optional[str] = None,
+):
+    """Exporta Excel de la tabla indicativa respetando los filtros activos."""
+    clauses = []
+    params: dict = {}
+
+    if centro:
+        clauses.append('LOWER(TRIM(nombre_sede)) = :centro')
+        params['centro'] = centro.strip().lower()
+    if nivel:
+        clauses.append('LOWER(TRIM(nivel_de_formacion)) = :nivel')
+        params['nivel'] = nivel.strip().lower()
+    if periodo_oferta:
+        clauses.append('LOWER(TRIM(periodo_oferta)) = :periodo_oferta')
+        params['periodo_oferta'] = periodo_oferta.strip().lower()
+
+    where_sql = ''
+    if clauses:
+        where_sql = ' WHERE ' + ' AND '.join(clauses)
+
+    # Exportar siempre todas las columnas de la tabla indicativa.
+    sql = (
+        'SELECT * FROM indicativa'
+        f'{where_sql} '
+        'ORDER BY vigencia DESC, periodo_oferta ASC, nombre_sede ASC'
+    )
+
+    try:
+        df = pd.read_sql(text(sql), con=engine, params=params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al exportar indicativa: {e}')
+
+    df_export = df.copy()
+
+    # Encabezados legibles para Excel.
+    original_cols = list(df_export.columns)
+    df_export.columns = [export_header_label_indicativa(col) for col in df_export.columns]
+
+    # Columnas que SI se ven en el frontend (resto deben quedar ocultas en Excel).
+    visible_db_cols = {
+        'nombre_sede',
+        'nivel_de_formacion',
+        'nombre_programa',
+        'periodo_oferta',
+        'tipo_de_oferta',
+    }
+    hidden_db_cols = {c for c in original_cols if c not in visible_db_cols}
+    hidden_header_labels = {export_header_label_indicativa(c) for c in hidden_db_cols}
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name='indicativa')
+
+        ws = writer.book['indicativa']
+        max_row = ws.max_row
+        max_col = ws.max_column
+
+        wrap_alignment = Alignment(wrap_text=True, vertical='top')
+        for row in ws.iter_rows(min_row=1, max_row=max_row, min_col=1, max_col=max_col):
+            for cell in row:
+                cell.alignment = wrap_alignment
+
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        min_width = 12
+        max_width = 60
+        for col_idx in range(1, max_col + 1):
+            col_letter = get_column_letter(col_idx)
+            max_len = 0
+            for row_idx in range(1, max_row + 1):
+                value = ws.cell(row=row_idx, column=col_idx).value
+                cell_text = '' if value is None else str(value)
+                if len(cell_text) > max_len:
+                    max_len = len(cell_text)
+            adjusted = min(max(max_len + 2, min_width), max_width)
+            ws.column_dimensions[col_letter].width = adjusted
+
+            # Ocultar en Excel las columnas que no se ven en la tabla del frontend.
+            header_value = ws.cell(row=1, column=col_idx).value
+            if header_value in hidden_header_labels:
+                ws.column_dimensions[col_letter].hidden = True
+
+        if max_col >= 1 and max_row >= 1:
+            last_col_letter = get_column_letter(max_col)
+            table_ref = f'A1:{last_col_letter}{max_row}'
+            table = Table(displayName='IndicativaExport', ref=table_ref)
+            style = TableStyleInfo(
+                name='TableStyleMedium9',
+                showFirstColumn=False,
+                showLastColumn=False,
+                showRowStripes=True,
+                showColumnStripes=False,
+            )
+            table.tableStyleInfo = style
+            ws.add_table(table)
+
+    output.seek(0)
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'indicativa_export_{ts}.xlsx'
+
+    return StreamingResponse(
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get('/indicativa/filters')
+def get_indicativa_filters():
+    """Devuelve valores distintos para los filtros de indicativa."""
+    try:
+        with engine.connect() as conn:
+            centros = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT nombre_sede FROM indicativa WHERE nombre_sede IS NOT NULL ORDER BY nombre_sede ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+            niveles = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT nivel_de_formacion FROM indicativa WHERE nivel_de_formacion IS NOT NULL ORDER BY nivel_de_formacion ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+            periodos = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT periodo_oferta FROM indicativa WHERE periodo_oferta IS NOT NULL ORDER BY periodo_oferta ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error obteniendo filtros de indicativa: {e}')
+
+    return JSONResponse(
+        content=jsonable_encoder(
+            {
+                'centros': centros,
+                'niveles': niveles,
+                'periodos_oferta': periodos,
+            }
+        )
+    )
+
+
 @app.get('/fichas/export')
 def export_fichas_excel(
     centro: Optional[str] = None,
@@ -638,13 +1342,20 @@ def export_fichas_excel(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error al exportar desde la base de datos: {e}')
 
-    # Excluir columna no requerida en exportacion.
+    # Exportar todas las columnas de la tabla fichas_formacion.
     df_export = df.copy()
-    if 'perfil_ingreso' in df_export.columns:
-        df_export = df_export.drop(columns=['perfil_ingreso'])
+
+    # Conservar los nombres originales para poder decidir que columnas ocultar.
+    original_cols_fichas = list(df_export.columns)
 
     # Encabezados legibles para Excel: sin guion bajo y con formato titulo.
     df_export.columns = [export_header_label(col) for col in df_export.columns]
+
+    # Columnas que NO se ven en la tabla del frontend (se ocultaran en Excel).
+    hidden_fichas_db_cols = {'cod_municipio', 'cod_regional', 'cod_centro', 'perfil_ingreso'}
+    hidden_fichas_headers = {
+        export_header_label(c) for c in hidden_fichas_db_cols if c in original_cols_fichas
+    }
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -678,6 +1389,11 @@ def export_fichas_excel(
             adjusted = min(max(max_len + 2, min_width), max_width)
             ws.column_dimensions[col_letter].width = adjusted
 
+            # Ocultar columnas que no se muestran en la tabla del frontend.
+            header_value = ws.cell(row=1, column=col_idx).value
+            if header_value in hidden_fichas_headers:
+                ws.column_dimensions[col_letter].hidden = True
+
         # Crear una tabla de Excel para aplicar formato de tabla.
         if max_col >= 1 and max_row >= 1:
             last_col_letter = get_column_letter(max_col)
@@ -706,17 +1422,61 @@ def export_fichas_excel(
 
 @app.post('/programas/upload-excel')
 async def upload_programas_excel(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(('.xls', '.xlsx')):
-        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+    """Subida normal de programas: requiere fecha_corte en nombre o celda A3.
+
+    Se mantiene el comportamiento existente para no romper el flujo actual.
+    """
+    if not file.filename.lower().endswith(('.xls', '.xlsx', '.xml')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls, .xlsx o .xml')
 
     content = await file.read()
     fecha_corte_file = extract_fecha_corte_from_filename(file.filename or '')
+    # Si el nombre no trae fecha, intentar leerla desde el contenido (A3)
+    if not fecha_corte_file and file.filename.lower().endswith(('.xls', '.xlsx')):
+        fecha_corte_file = extract_fecha_corte_from_excel_content(content)
     if not fecha_corte_file:
         raise HTTPException(
             status_code=400,
-            detail='No se pudo extraer fecha_corte del nombre del archivo. Usa formato como PE-04_20260306_15+55.xlsx',
+            detail='No se pudo obtener fecha_corte ni del nombre del archivo ni de la celda A3 del Excel.',
         )
 
+    stats = _process_programas_excel(content=content, filename=file.filename or '', fecha_corte_file=fecha_corte_file)
+    return JSONResponse(stats)
+
+
+@app.post('/programas/upload-excel-historico')
+async def upload_programas_excel_historico(file: UploadFile = File(...), year: int = Form(...)):
+    """Subida de archivos historicos de programas.
+
+    Estos archivos no traen fecha de corte explicita, solo el anio. Se toma
+    como fecha_corte el 31/12 de ese anio para que los filtros por anio
+    funcionen igual que con los archivos normales.
+    """
+    if not file.filename.lower().endswith(('.xls', '.xlsx', '.xml')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls, .xlsx o .xml')
+
+    try:
+        year_int = int(year)
+    except Exception:
+        raise HTTPException(status_code=400, detail='El anio historico es invalido')
+
+    if year_int < 1900 or year_int > 2100:
+        raise HTTPException(status_code=400, detail='El anio historico debe estar entre 1900 y 2100')
+
+    content = await file.read()
+    # Usamos como fecha_corte el ultimo dia del anio para que YEAR(fecha_corte)
+    # coincida con el anio historico que selecciona el usuario en los filtros.
+    fecha_corte_file = date(year_int, 12, 31)
+
+    stats = _process_programas_excel(content=content, filename=file.filename or '', fecha_corte_file=fecha_corte_file)
+    return JSONResponse(stats)
+
+
+def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file: date) -> dict:
+    """Logica comun para importar programas desde un Excel.
+
+    Se usa tanto para la subida normal como para la subida historica.
+    """
     # Solo mapear los campos definidos para la tabla programas_formacion.
     # Se incluyen variantes que suelen venir en archivos tipo SOFIA/planeacion.
     col_map = {
@@ -752,7 +1512,22 @@ async def upload_programas_excel(file: UploadFile = File(...)):
         for alias in aliases:
             alias_pool.add(normalize_col_name(alias))
 
-    df = read_excel_basic(content)
+    # Permitir XML: si la extension es .xml, leerlo como tabla antes de aplicar
+    # la logica de deteccion de encabezados propia de Excel.
+    if filename.lower().endswith('.xml'):
+        # Para programas, los XML suelen ser archivos de Excel 2003 (SpreadsheetML).
+        # Los leemos como hoja de calculo, no como tabla generica.
+        try:
+            df = read_spreadsheetml_xml(content)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f'No se pudo leer el XML de programas como Excel: {e}',
+            )
+    else:
+        df = read_excel_basic(content)
     if df.empty:
         raise HTTPException(status_code=400, detail='El Excel no contiene filas')
 
@@ -761,7 +1536,11 @@ async def upload_programas_excel(file: UploadFile = File(...)):
 
     # Si detecta pocos encabezados utiles o muchos "unnamed", intenta encontrar la fila de encabezado correcta.
     unnamed_count = sum(1 for c in norm_default_headers if c.startswith('unnamed:'))
-    if default_score < 3 or unnamed_count >= 5:
+    if (default_score < 3 or unnamed_count >= 5) and not filename.lower().endswith('.xml'):
+        # Solo intentamos la deteccion avanzada de fila de encabezado cuando el
+        # archivo es realmente un Excel (xls/xlsx). Para XML ya tenemos el
+        # DataFrame correcto desde pd.read_xml y reintentar leerlo como Excel
+        # provoca errores de formato.
         df_raw = read_excel_no_header(content)
         scan_limit = min(40, len(df_raw.index))
         best_idx = None
@@ -810,12 +1589,14 @@ async def upload_programas_excel(file: UploadFile = File(...)):
         else:
             df_out[target] = None
 
-    # fecha_corte siempre se toma del nombre del archivo.
+    # fecha_corte se recibe ya calculada (normal o historica).
     df_out['fecha_corte'] = fecha_corte_file
 
     # Normalizacion de tipos
     for dcol in ['fecha_inicio', 'fecha_fin']:
-        df_out[dcol] = pd.to_datetime(df_out[dcol], errors='coerce').dt.date
+        # En archivos historicos las fechas suelen venir como dia/mes/anio
+        # (por ejemplo 31/12/2018), por eso usamos dayfirst=True.
+        df_out[dcol] = pd.to_datetime(df_out[dcol], errors='coerce', dayfirst=True).dt.date
 
     for ncol in ['numero_ficha', 'cupos', 'aprendices_activos']:
         df_out[ncol] = pd.to_numeric(df_out[ncol], errors='coerce').astype('Int64')
@@ -882,6 +1663,10 @@ async def upload_programas_excel(file: UploadFile = File(...)):
                 rows = conn.execute(check_sql, {'ids': ficha_ids}).fetchall()
             existing_ids = {int(r[0]) for r in rows if r and r[0] is not None}
 
+        # Estadisticas de duplicados (respecto a la tabla existente)
+        duplicate_fichas = len(existing_ids)
+        duplicate_rows_total = int(df_out['numero_ficha'].isin(existing_ids).sum()) if existing_ids and 'numero_ficha' in df_out.columns else 0
+
         # Filas nuevas (fichas que aun no existen en la tabla)
         df_new = df_out[~df_out['numero_ficha'].isin(existing_ids)].copy() if 'numero_ficha' in df_out.columns else df_out.copy()
         if not df_new.empty:
@@ -921,21 +1706,34 @@ async def upload_programas_excel(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error insertando/actualizando programas: {e}')
 
-    return JSONResponse({
+    return {
         'inserted': int(len(df_new)) if 'df_new' in locals() else 0,
         'updated_fichas': int(updated_fichas),
+        'duplicate_fichas': int(duplicate_fichas) if 'duplicate_fichas' in locals() else 0,
+        'duplicate_rows': int(duplicate_rows_total) if 'duplicate_rows_total' in locals() else 0,
         'fecha_corte': str(fecha_corte_file),
-    })
+    }
 
 
 @app.post('/programas/upload-certificados')
 async def upload_programas_certificados(file: UploadFile = File(...)):
     """Actualiza campo `certificado` en programas_formacion usando un Excel complementario y cruce por numero_ficha."""
-    if not file.filename.lower().endswith(('.xls', '.xlsx')):
-        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+    if not file.filename.lower().endswith(('.xls', '.xlsx', '.xml')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls, .xlsx o .xml')
 
     content = await file.read()
-    df = read_excel_basic(content)
+    is_xml = file.filename.lower().endswith('.xml')
+
+    if is_xml:
+        try:
+            df = pd.read_xml(io.BytesIO(content))
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f'No se pudo leer el XML complementario de certificados como tabla: {e}',
+            )
+    else:
+        df = read_excel_basic(content)
     if df.empty:
         raise HTTPException(status_code=400, detail='El Excel complementario no contiene filas')
 
@@ -952,7 +1750,10 @@ async def upload_programas_certificados(file: UploadFile = File(...)):
     default_score = len(set(norm_default_headers).intersection(alias_pool))
     unnamed_count = sum(1 for c in norm_default_headers if c.startswith('unnamed:'))
 
-    if default_score < 2 or unnamed_count >= 5:
+    if (default_score < 2 or unnamed_count >= 5) and not is_xml:
+        # Igual que en programas: solo intentamos la deteccion de encabezado
+        # avanzada cuando el archivo es un Excel real. Para XML confiamos en
+        # el DataFrame devuelto por pd.read_xml.
         df_raw = read_excel_no_header(content)
         scan_limit = min(40, len(df_raw.index))
         best_idx = None
@@ -1059,6 +1860,9 @@ def get_programas(
     municipio: Optional[str] = None,
     estrategia: Optional[str] = None,
     convenio: Optional[str] = None,
+    vigencia: Optional[int] = None,
+    numero_ficha: Optional[int] = None,
+    solo_certificados: Optional[str] = None,
     page: int = 1,
     per_page: int = 30,
 ):
@@ -1093,6 +1897,15 @@ def get_programas(
     if convenio:
         clauses.append('LOWER(TRIM(convenio)) = :convenio')
         params['convenio'] = convenio.strip().lower()
+    if vigencia is not None:
+        clauses.append('YEAR(fecha_inicio) = :vigencia')
+        params['vigencia'] = int(vigencia)
+    if numero_ficha is not None:
+        clauses.append('numero_ficha = :numero_ficha')
+        params['numero_ficha'] = int(numero_ficha)
+    # solo_certificados: cualquier valor no vacio/"0"/"false" activa el filtro
+    if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
+        clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
 
     where_sql = ''
     if clauses:
@@ -1155,6 +1968,189 @@ def get_programas(
         'per_page': per_page,
     }
     return JSONResponse(content=jsonable_encoder(payload))
+
+
+@app.get('/programas/export')
+def export_programas_excel(
+    year: Optional[int] = None,
+    municipio: Optional[str] = None,
+    estrategia: Optional[str] = None,
+    convenio: Optional[str] = None,
+    vigencia: Optional[int] = None,
+    numero_ficha: Optional[int] = None,
+    solo_certificados: Optional[str] = None,
+):
+    """Exporta Excel de programas_formacion respetando los filtros activos."""
+    clauses = []
+    params: dict = {}
+
+    if year is not None:
+        clauses.append('YEAR(fecha_corte) = :year')
+        params['year'] = int(year)
+    if municipio:
+        clauses.append('LOWER(TRIM(ciudad_municipio)) = :municipio')
+        params['municipio'] = municipio.strip().lower()
+    if estrategia:
+        clauses.append('LOWER(TRIM(estrategia_programa)) = :estrategia')
+        params['estrategia'] = estrategia.strip().lower()
+    if convenio:
+        clauses.append('LOWER(TRIM(convenio)) = :convenio')
+        params['convenio'] = convenio.strip().lower()
+    if vigencia is not None:
+        clauses.append('YEAR(fecha_inicio) = :vigencia')
+        params['vigencia'] = int(vigencia)
+    if numero_ficha is not None:
+        clauses.append('numero_ficha = :numero_ficha')
+        params['numero_ficha'] = int(numero_ficha)
+    if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
+        clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
+
+    where_sql = ''
+    if clauses:
+        where_sql = ' WHERE ' + ' AND '.join(clauses)
+
+    sql = (
+        'SELECT * FROM programas_formacion'
+        f'{where_sql} '
+        'ORDER BY fecha_corte DESC, numero_ficha ASC, id ASC'
+    )
+
+    try:
+        df = pd.read_sql(text(sql), con=engine, params=params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error exportando programas: {e}')
+
+    # Exportar todas las columnas de la tabla programas_formacion.
+    df_export = df.copy()
+
+    # En el frontend se oculta la columna "id"; aqui la mantenemos en el Excel
+    # pero la marcamos como oculta para que no aparezca a simple vista.
+    original_cols_programas = list(df_export.columns)
+    hidden_programas_headers = set()
+    if 'id' in original_cols_programas:
+        hidden_programas_headers.add('id')
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name='programas')
+
+        ws = writer.book['programas']
+        max_row = ws.max_row
+        max_col = ws.max_column
+
+        wrap_alignment = Alignment(wrap_text=True, vertical='top')
+        for row in ws.iter_rows(min_row=1, max_row=max_row, min_col=1, max_col=max_col):
+            for cell in row:
+                cell.alignment = wrap_alignment
+
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        min_width = 12
+        max_width = 60
+        for col_idx in range(1, max_col + 1):
+            col_letter = get_column_letter(col_idx)
+            max_len = 0
+            for row_idx in range(1, max_row + 1):
+                value = ws.cell(row=row_idx, column=col_idx).value
+                cell_text = '' if value is None else str(value)
+                if len(cell_text) > max_len:
+                    max_len = len(cell_text)
+            adjusted = min(max(max_len + 2, min_width), max_width)
+            ws.column_dimensions[col_letter].width = adjusted
+
+            # Ocultar columnas que no se muestran en la tabla del frontend.
+            header_value = ws.cell(row=1, column=col_idx).value
+            if header_value in hidden_programas_headers:
+                ws.column_dimensions[col_letter].hidden = True
+
+        if max_col >= 1 and max_row >= 1:
+            last_col_letter = get_column_letter(max_col)
+            table_ref = f'A1:{last_col_letter}{max_row}'
+            table = Table(displayName='ProgramasExport', ref=table_ref)
+            style = TableStyleInfo(
+                name='TableStyleMedium9',
+                showFirstColumn=False,
+                showLastColumn=False,
+                showRowStripes=True,
+                showColumnStripes=False,
+            )
+            table.tableStyleInfo = style
+            ws.add_table(table)
+
+    output.seek(0)
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'programas_export_{ts}.xlsx'
+
+    return StreamingResponse(
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get('/programas/filters')
+def get_programas_filters():
+    """Devuelve valores distintos para los filtros de programas a nivel global.
+
+    No aplica paginacion ni filtros previos: siempre consulta toda la tabla
+    programas_formacion para construir los combos de la UI.
+    """
+    try:
+        with engine.connect() as conn:
+            years = [
+                int(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT YEAR(fecha_corte) AS y FROM programas_formacion WHERE fecha_corte IS NOT NULL ORDER BY y DESC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+
+            vigencias = [
+                int(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT YEAR(fecha_inicio) AS y FROM programas_formacion WHERE fecha_inicio IS NOT NULL ORDER BY y DESC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+
+            municipios = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT ciudad_municipio FROM programas_formacion WHERE ciudad_municipio IS NOT NULL ORDER BY ciudad_municipio ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+
+            estrategias = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT estrategia_programa FROM programas_formacion WHERE estrategia_programa IS NOT NULL ORDER BY estrategia_programa ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+
+            convenios = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT convenio FROM programas_formacion WHERE convenio IS NOT NULL ORDER BY convenio ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error obteniendo filtros de programas: {e}')
+
+    return JSONResponse(
+        content=jsonable_encoder(
+            {
+                'years': years,
+                'vigencias': vigencias,
+                'municipios': municipios,
+                'estrategias': estrategias,
+                'convenios': convenios,
+            }
+        )
+    )
 
 
 class UpdateRequest(BaseModel):

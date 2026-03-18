@@ -60,6 +60,40 @@ CREATE TABLE IF NOT EXISTS programas_formacion (
     INDEX idx_programas_numero_ficha (numero_ficha)
 );
 
+-- Nueva tabla para oferta indicativa
+CREATE TABLE IF NOT EXISTS indicativa (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    id_indicativa BIGINT NULL,
+    regional VARCHAR(150) NULL,
+    codigo_de_centro INT NULL,
+    nombre_sede VARCHAR(255) NULL,
+    vigencia INT NULL,
+    periodo_oferta VARCHAR(100) NULL,
+    codigo_programa BIGINT NULL,
+    version INT NULL,
+    codigo_version VARCHAR(50) NULL,
+    nombre_programa VARCHAR(255) NULL,
+    nivel_de_formacion VARCHAR(150) NULL,
+    modalidad VARCHAR(150) NULL,
+    mes_inicio VARCHAR(50) NULL,
+    cupos INT NULL,
+    ano_termina INT NULL,
+    departamento_formacion VARCHAR(150) NULL,
+    codigo_dane_departamento VARCHAR(20) NULL,
+    municipio_formacion VARCHAR(150) NULL,
+    codigo_dane_municipio VARCHAR(20) NULL,
+    gira_tecnica VARCHAR(50) NULL,
+    programa_fic VARCHAR(50) NULL,
+    tipo_de_oferta VARCHAR(150) NULL,
+    persona_registra VARCHAR(150) NULL,
+    fecha_de_registro DATETIME NULL,
+    tipo_de_institucion VARCHAR(150) NULL,
+    nivel_institucion VARCHAR(150) NULL,
+    INDEX idx_indicativa_vigencia (vigencia),
+    INDEX idx_indicativa_periodo (periodo_oferta),
+    INDEX idx_indicativa_centro (nombre_sede)
+);
+
 -- Insertar registros proporcionados por el usuario
 INSERT INTO fichas_formacion (cod_regional, regional, cod_municipio, municipio, cod_centro, centro_formacion, cod_programa, denominacion_programa, cod_ficha, estado_ficha, jornada, nivel_formacion, cupo, inscritos_primera_opcion, inscritos_segunda_opcion, oferta, tipo, perfil_ingreso, periodo) VALUES
 (66, 'REGIONAL RISARALDA', 57066001, 'PEREIRA', 9308, 'CENTRO DE COMERCIO Y SERVICIOS', 121202, 'GESTIÓN BANCARIA Y DE ENTIDADES FINANCIERAS', 3140146, 'En Ejecución', 'DIURNA', 'TECNÓLOGO', 31, 131, 25, 'I', 'PRESENCIAL Y A DISTANCIA', NULL, 2025),

@@ -7,3 +7,4 @@ pymysql
 python-dotenv
 python-multipart
 xlrd>=2.0.1
+lxml

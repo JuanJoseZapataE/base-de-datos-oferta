@@ -3,6 +3,7 @@ let items = [];
 let page = 1;
 let activeFilters = { centro: '', oferta: '', estado: '', tipo: '', nivel: '', periodo: '' };
 let activeSearch = '';
+let lastSearchSource = '';
 let lastTotalCount = 0;
 let pollIntervalId = null;
 const API_BASE = 'http://127.0.0.1:8000';
@@ -47,8 +48,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
   initUploadBlocks();
   // Cargar datos automáticamente al iniciar
   loadAll();
-  document.getElementById('filterBtn').addEventListener('click', ()=>{ readFilters(); page = 1; render(); });
-  document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
+  const filterBtn = document.getElementById('filterBtn');
+  if(filterBtn){
+    filterBtn.addEventListener('click', ()=>{ readFilters(); page = 1; render(); });
+  }
+  const clearBtn = document.getElementById('clearFiltersBtn');
+  if(clearBtn){
+    clearBtn.addEventListener('click', ()=>{
     const fc = document.getElementById('filterCentro'); if(fc) fc.value='';
     const fo = document.getElementById('filterOferta'); if(fo) fo.value='';
     const ft = document.getElementById('filterTipo'); if(ft) ft.value='';
@@ -57,12 +63,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const fp = document.getElementById('filterPeriodo'); if(fp) fp.value='';
     const s = document.getElementById('searchInput'); if(s) s.value='';
     readFilters(); page=1; render();
-  });
+    });
+  }
   const searchEl = document.getElementById('searchInput');
   if(searchEl){
     searchEl.addEventListener('input', ev => {
       const v = ev.target.value || '';
       activeSearch = v;
+      lastSearchSource = 'filter';
+      // Sincronizar con el buscador del encabezado si existe
+      const headerSearch = document.getElementById('searchInputHeader');
+      if(headerSearch && headerSearch.value !== v) headerSearch.value = v;
       updateSearchSuggestions(v);
       page = 1;
       render();
@@ -73,14 +84,25 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if(exportBtn){
     exportBtn.addEventListener('click', exportFilteredExcel);
   }
-  document.getElementById('first').addEventListener('click', ()=>{ page = 1; render(); });
-  document.getElementById('prev').addEventListener('click', ()=>{ if(page>1){ page--; render(); } });
-  document.getElementById('next').addEventListener('click', ()=>{ const totalPages = Math.max(1, Math.ceil(items.length / perPage)); if(page<totalPages){ page++; render(); } });
-  document.getElementById('last').addEventListener('click', ()=>{
-    const totalPages = Math.max(1, Math.ceil(items.length / perPage));
-    page = totalPages;
-    render();
-  });
+  const firstBtn = document.getElementById('first');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const lastBtn = document.getElementById('last');
+  if(firstBtn){ firstBtn.addEventListener('click', ()=>{ page = 1; render(); }); }
+  if(prevBtn){ prevBtn.addEventListener('click', ()=>{ if(page>1){ page--; render(); } }); }
+  if(nextBtn){
+    nextBtn.addEventListener('click', ()=>{
+      const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+      if(page<totalPages){ page++; render(); }
+    });
+  }
+  if(lastBtn){
+    lastBtn.addEventListener('click', ()=>{
+      const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+      page = totalPages;
+      render();
+    });
+  }
   // Iniciar polling para detectar nuevos registros en segundo plano
   startPolling();
 });
@@ -153,7 +175,10 @@ function addUploadBlock(){
   block.innerHTML = `
     <div class="d-flex justify-content-between align-items-center mb-2">
       <strong>Archivo ${idx}</strong>
-      <button type="button" class="btn btn-sm btn-outline-danger remove-upload-block">Quitar</button>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-primary upload-single-block">Subir este archivo</button>
+        <button type="button" class="btn btn-sm btn-outline-danger remove-upload-block">Quitar</button>
+      </div>
     </div>
     <div class="row g-2 align-items-center">
       <div class="col-md-2">
@@ -180,7 +205,9 @@ function addUploadBlock(){
       </div>
       <div class="col-md-4">
         <label class="form-label">Archivo Excel *</label>
-        <input type="file" accept=".xls,.xlsx" class="form-control upload-file">
+        <div class="excel-picker">
+          <input type="file" accept=".xls,.xlsx,.xml" class="form-control upload-file" multiple>
+        </div>
       </div>
     </div>
   `;
@@ -192,6 +219,45 @@ function addUploadBlock(){
       block.remove();
       renumberUploadBlocks();
       if(wrap.children.length === 0) addUploadBlock();
+    });
+  }
+  const uploadSingleBtn = block.querySelector('.upload-single-block');
+  if(uploadSingleBtn){
+    uploadSingleBtn.addEventListener('click', async ()=>{
+      const blocks = Array.from(document.querySelectorAll('#uploadBlocks .upload-block'));
+      const position = blocks.indexOf(block) + 1;
+      const entry = readUploadBlock(block);
+      const err = validateUploadEntry(entry, position || 1);
+      if(err){
+        alert(err);
+        return;
+      }
+      const totalFiles = entry.files ? entry.files.length : 0;
+      showLoading();
+      disableActions(true);
+      try{
+        let totalInserted = 0;
+        for(let i = 0; i < entry.files.length; i++){
+          const file = entry.files[i];
+          const percent = totalFiles ? Math.round((i / totalFiles) * 100) : 0;
+          setUploadProgress(percent);
+          setStatus(`Subiendo archivo ${i + 1} de ${totalFiles} (bloque ${position || 1})...`);
+          const result = await uploadOneExcel(entry, file);
+          const inserted = result && result.inserted ? Number(result.inserted) : 0;
+          totalInserted += inserted;
+        }
+        setUploadProgress(100);
+        setStatus(`Subida completada. Archivos en este bloque: ${totalFiles}. Filas insertadas: ${totalInserted}. Recargando datos...`);
+        showToast(`Subidos ${totalFiles} archivos en este bloque. Filas insertadas: ${totalInserted}.`, 'success');
+        await loadAll();
+      }catch(e){
+        setStatus('Error upload: '+e.message);
+        showToast('Error upload: '+e.message, 'danger');
+        console.error(e);
+      }finally{
+        hideLoading();
+        disableActions(false);
+      }
     });
   }
   renumberUploadBlocks();
@@ -210,21 +276,21 @@ function readUploadBlock(block){
   const oferta = (block.querySelector('.upload-oferta')?.value || '').trim();
   const tipo = (block.querySelector('.upload-tipo')?.value || '').trim();
   const fileInput = block.querySelector('.upload-file');
-  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
-  return { periodo, oferta, tipo, file };
+  const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+  return { periodo, oferta, tipo, files };
 }
 
 function validateUploadEntry(entry, position){
   if(!entry.periodo) return `Archivo ${position}: Debes indicar el Periodo (ano).`;
   if(!entry.oferta) return `Archivo ${position}: Debes indicar la Oferta.`;
   if(!entry.tipo) return `Archivo ${position}: Debes indicar el Tipo.`;
-  if(!entry.file) return `Archivo ${position}: Debes seleccionar un archivo Excel.`;
+  if(!entry.files || entry.files.length === 0) return `Archivo ${position}: Debes seleccionar al menos un archivo Excel.`;
   return '';
 }
 
-async function uploadOneExcel(entry){
+async function uploadOneExcel(entry, file){
   const fd = new FormData();
-  fd.append('file', entry.file);
+  fd.append('file', file);
   fd.append('periodo', entry.periodo);
   fd.append('oferta', entry.oferta);
   fd.append('tipo', entry.tipo);
@@ -256,15 +322,25 @@ async function uploadAllExcels(){
   showLoading();
   disableActions(true);
   let totalInserted = 0;
+  // total de archivos (sumando todos los bloques)
+  const totalFiles = entries.reduce((acc, e) => acc + (e.files ? e.files.length : 0), 0) || 0;
+  let processedFiles = 0;
   try{
     for(let i = 0; i < entries.length; i++){
-      setStatus(`Subiendo archivo ${i + 1} de ${entries.length}...`);
-      const result = await uploadOneExcel(entries[i]);
-      const inserted = result && result.inserted ? Number(result.inserted) : 0;
-      totalInserted += inserted;
+      const entry = entries[i];
+      for(let j = 0; j < entry.files.length; j++){
+        processedFiles += 1;
+        const percent = totalFiles ? Math.round(((processedFiles - 1) / totalFiles) * 100) : 0;
+        setUploadProgress(percent);
+        setStatus(`Subiendo archivo ${processedFiles} de ${totalFiles} (bloque ${i + 1})...`);
+        const result = await uploadOneExcel(entry, entry.files[j]);
+        const inserted = result && result.inserted ? Number(result.inserted) : 0;
+        totalInserted += inserted;
+      }
     }
-    setStatus(`Subidos ${entries.length} archivos. Filas insertadas: ${totalInserted}. Recargando datos...`);
-    showToast(`Subidos ${entries.length} archivos. Filas insertadas: ${totalInserted}.`, 'success');
+    setUploadProgress(100);
+    setStatus(`Subidos ${totalFiles} archivos. Filas insertadas: ${totalInserted}. Recargando datos...`);
+    showToast(`Subidos ${totalFiles} archivos. Filas insertadas: ${totalInserted}.`, 'success');
     await loadAll();
   }catch(e){
     setStatus('Error upload: '+e.message);
@@ -389,9 +465,48 @@ function render(){
   // Excluir `cod_municipio` y `cod_regional` de la vista para dejar más espacio (no se eliminan de la base de datos)
   const keys = Object.keys(slice[0]).filter(k => k !== 'cod_municipio' && k !== 'cod_regional' && k !== 'perfil_ingreso' && k !== 'cod_centro');
   const trh = document.createElement('tr');
-  trh.innerHTML = keys.map(k=>`<th>${friendlyLabel(k)}</th>`).join('');
+  // Construir encabezados; en la columna denominacion_programa insertamos
+  // un buscador en tiempo real dentro de la celda del encabezado, que
+  // comparte estado con el buscador de la sección de filtros.
+  trh.innerHTML = keys.map(k => {
+    if(k === 'denominacion_programa'){
+      return `
+        <th>
+          ${friendlyLabel(k)}
+          <div class="mt-1">
+            <input id="searchInputHeader" class="form-control form-control-sm" placeholder="Buscar programa..." list="searchSuggestions" autocomplete="off" />
+          </div>
+        </th>`;
+    }
+    return `<th>${friendlyLabel(k)}</th>`;
+  }).join('');
   trh.innerHTML += '<th>Acciones</th>';
   thead.appendChild(trh);
+  // Re-vincular el buscador del encabezado ahora que existe
+  const headerSearch = document.getElementById('searchInputHeader');
+  if(headerSearch){
+    headerSearch.value = activeSearch || '';
+    headerSearch.addEventListener('input', ev => {
+      const v = ev.target.value || '';
+      activeSearch = v;
+      lastSearchSource = 'header';
+      // Sincronizar con el buscador de filtros
+      const filterSearch = document.getElementById('searchInput');
+      if(filterSearch && filterSearch.value !== v) filterSearch.value = v;
+      updateSearchSuggestions(v);
+      page = 1;
+      render();
+    });
+    // Actualizar sugerencias con el valor actual
+    updateSearchSuggestions(headerSearch.value || '');
+    // Si la última interacción de búsqueda fue en el encabezado,
+    // devolver el foco al input para permitir escribir seguido.
+    if(lastSearchSource === 'header'){
+      headerSearch.focus();
+      const len = headerSearch.value.length;
+      try{ headerSearch.setSelectionRange(len, len); }catch(e){}
+    }
+  }
   slice.forEach((r,i)=>{
     const tr = document.createElement('tr');
     const trafficClass = getTrafficClass(r);
@@ -529,7 +644,26 @@ document.getElementById && (()=>{
   }
 })();
 
-function setStatus(s){ document.getElementById('status').innerText = s; }
+function setStatus(s){
+  const el = document.getElementById('status');
+  if(el) el.innerText = s || '';
+}
+
+function setUploadProgress(percent){
+  const container = document.getElementById('uploadProgressContainer');
+  const bar = document.getElementById('uploadProgressBar');
+  if(!container || !bar) return;
+  if(!percent || percent <= 0){
+    container.style.display = 'none';
+    bar.style.width = '0%';
+    bar.setAttribute('aria-valuenow', '0');
+    return;
+  }
+  const p = Math.max(0, Math.min(100, percent));
+  container.style.display = 'block';
+  bar.style.width = p + '%';
+  bar.setAttribute('aria-valuenow', String(p));
+}
 
 function escapeHtml(v){ if(v === null || v === undefined) return ''; return String(v).replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
