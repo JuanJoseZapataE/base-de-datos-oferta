@@ -23,6 +23,94 @@ let currentPage = 1;
 const PER_PAGE = 50;
 let indicativaFiltersMeta = null;
 
+function setupMultiSelect(selectId){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+
+  select.classList.add('multi-hidden-select');
+
+  let labelText = selectId;
+  const prev = select.previousElementSibling;
+  if(prev && prev.tagName === 'LABEL'){
+    labelText = (prev.textContent || '').trim();
+  }
+
+  let wrapper = select.nextElementSibling;
+  if(!wrapper || !wrapper.classList || !wrapper.classList.contains('multi-select')){
+    wrapper = document.createElement('div');
+    wrapper.className = 'multi-select mt-1';
+    wrapper.innerHTML = `
+      <button type="button" class="btn btn-outline-secondary btn-sm multi-select-toggle" data-target="${selectId}">
+        <span class="me-2">${labelText}</span>
+        <span class="multi-select-summary">(todos)</span>
+      </button>
+      <div class="multi-select-menu" data-target="${selectId}" style="display:none;"></div>
+    `;
+    select.parentNode.insertBefore(wrapper, select.nextSibling);
+
+    const toggle = wrapper.querySelector('.multi-select-toggle');
+    const menu = wrapper.querySelector('.multi-select-menu');
+    if(toggle && menu){
+      toggle.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const isOpen = menu.style.display === 'block';
+        document.querySelectorAll('.multi-select-menu').forEach(m => { m.style.display = 'none'; });
+        menu.style.display = isOpen ? 'none' : 'block';
+      });
+    }
+  }
+
+  const menu = wrapper.querySelector('.multi-select-menu');
+  if(!menu) return;
+
+  menu.innerHTML = '';
+  const options = Array.from(select.options || []);
+  options.forEach((opt, idx) => {
+    const value = (opt.value || '').toString();
+    if(value === '') return;
+    const id = `${selectId}_opt_${idx}`;
+    const row = document.createElement('div');
+    row.className = 'multi-select-option';
+    row.innerHTML = `
+      <input type="checkbox" id="${id}">
+      <label for="${id}" class="mb-0">${opt.text}</label>
+    `;
+    const cb = row.querySelector('input[type="checkbox"]');
+    if(cb){
+      cb.checked = opt.selected;
+      cb.dataset.value = value;
+      cb.addEventListener('change', ()=>{
+        opt.selected = cb.checked;
+        updateMultiSelectSummary(selectId);
+        currentPage = 1;
+        loadIndicativa();
+      });
+    }
+    menu.appendChild(row);
+  });
+
+  updateMultiSelectSummary(selectId);
+}
+
+function updateMultiSelectSummary(selectId){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+  const wrapper = select.nextElementSibling;
+  if(!wrapper || !wrapper.classList || !wrapper.classList.contains('multi-select')) return;
+  const summaryEl = wrapper.querySelector('.multi-select-summary');
+  if(!summaryEl) return;
+
+  const options = Array.from(select.options || []).filter(o => o.value !== '');
+  const selected = options.filter(o => o.selected);
+  if(!selected.length){
+    summaryEl.textContent = '(todos)';
+  }else if(selected.length === 1){
+    summaryEl.textContent = selected[0].text;
+  }else{
+    summaryEl.textContent = `${selected.length} seleccionados`;
+  }
+}
+
 function setStatus(msg){
   const el = document.getElementById('status');
   if(el) el.textContent = msg || '';
@@ -66,20 +154,27 @@ async function loadIndicativa(){
 }
 
 function getIndicativaFilters(){
-  const centro = (document.getElementById('filterCentro')?.value || '').trim();
-  const nivel = (document.getElementById('filterNivel')?.value || '').trim();
-  const periodo = (document.getElementById('filterPeriodoOferta')?.value || '').trim();
-  return { centro, nivel, periodo };
+  const getSelectedValues = (sel) => {
+    if(!sel) return [];
+    return Array.from(sel.selectedOptions || [])
+      .map(o => (o.value || '').toString().trim())
+      .filter(v => v !== '');
+  };
+
+  const centros = getSelectedValues(document.getElementById('filterCentro'));
+  const niveles = getSelectedValues(document.getElementById('filterNivel'));
+  const periodos = getSelectedValues(document.getElementById('filterPeriodoOferta'));
+  return { centros, niveles, periodos };
 }
 
 function buildIndicativaUrl(){
-  const { centro, nivel, periodo } = getIndicativaFilters();
+  const { centros, niveles, periodos } = getIndicativaFilters();
   const params = new URLSearchParams();
   params.set('page', String(currentPage || 1));
   params.set('per_page', String(PER_PAGE));
-  if(centro) params.set('centro', centro);
-  if(nivel) params.set('nivel', nivel);
-  if(periodo) params.set('periodo_oferta', periodo);
+  if(centros.length) params.set('centro', centros.join(','));
+  if(niveles.length) params.set('nivel', niveles.join(','));
+  if(periodos.length) params.set('periodo_oferta', periodos.join(','));
   const q = params.toString();
   return `${API_BASE}/indicativa${q ? `?${q}` : ''}`;
 }
@@ -181,11 +276,11 @@ function getFilenameFromDisposition(contentDisposition){
 }
 
 function buildIndicativaExportUrl(){
-  const { centro, nivel, periodo } = getIndicativaFilters();
+  const { centros, niveles, periodos } = getIndicativaFilters();
   const params = new URLSearchParams();
-  if(centro) params.set('centro', centro);
-  if(nivel) params.set('nivel', nivel);
-  if(periodo) params.set('periodo_oferta', periodo);
+  if(centros.length) params.set('centro', centros.join(','));
+  if(niveles.length) params.set('nivel', niveles.join(','));
+  if(periodos.length) params.set('periodo_oferta', periodos.join(','));
   const q = params.toString();
   return `${API_BASE}/indicativa/export${q ? `?${q}` : ''}`;
 }
@@ -239,9 +334,9 @@ function populateIndicativaFilterOptions(){
   const periodoEl = document.getElementById('filterPeriodoOferta');
   if(!centroEl || !nivelEl || !periodoEl) return;
 
-  const selectedCentro = centroEl.value;
-  const selectedNivel = nivelEl.value;
-  const selectedPeriodo = periodoEl.value;
+  const selectedCentros = Array.from(centroEl.selectedOptions || []).map(o => o.value);
+  const selectedNiveles = Array.from(nivelEl.selectedOptions || []).map(o => o.value);
+  const selectedPeriodos = Array.from(periodoEl.selectedOptions || []).map(o => o.value);
 
   centroEl.options.length = 1;
   (indicativaFiltersMeta.centros || []).forEach(v => {
@@ -267,9 +362,13 @@ function populateIndicativaFilterOptions(){
     periodoEl.appendChild(o);
   });
 
-  if(selectedCentro) centroEl.value = selectedCentro;
-  if(selectedNivel) nivelEl.value = selectedNivel;
-  if(selectedPeriodo) periodoEl.value = selectedPeriodo;
+  Array.from(centroEl.options || []).forEach(o => { o.selected = selectedCentros.includes(o.value); });
+  Array.from(nivelEl.options || []).forEach(o => { o.selected = selectedNiveles.includes(o.value); });
+  Array.from(periodoEl.options || []).forEach(o => { o.selected = selectedPeriodos.includes(o.value); });
+
+  ['filterCentro','filterNivel','filterPeriodoOferta'].forEach(id => {
+    setupMultiSelect(id);
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -285,16 +384,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportBtn = document.getElementById('exportIndicativaBtn');
   if(applyBtn) applyBtn.addEventListener('click', () => { currentPage = 1; loadIndicativa(); });
   if(clearBtn) clearBtn.addEventListener('click', () => {
-    const centroEl = document.getElementById('filterCentro');
-    const nivelEl = document.getElementById('filterNivel');
-    const periodoEl = document.getElementById('filterPeriodoOferta');
-    if(centroEl) centroEl.value = '';
-    if(nivelEl) nivelEl.value = '';
-    if(periodoEl) periodoEl.value = '';
+    ['filterCentro','filterNivel','filterPeriodoOferta'].forEach(id => {
+      const sel = document.getElementById(id);
+      if(sel){
+        Array.from(sel.options || []).forEach(o => { o.selected = false; });
+        updateMultiSelectSummary(id);
+      }
+    });
     currentPage = 1;
     loadIndicativa();
   });
   if(exportBtn) exportBtn.addEventListener('click', exportIndicativaExcel);
+  document.addEventListener('click', (ev)=>{
+    const target = ev.target;
+    if(!target.closest || !target.closest('.multi-select')){
+      document.querySelectorAll('.multi-select-menu').forEach(m => { m.style.display = 'none'; });
+    }
+  });
   loadIndicativaFilterOptions().finally(() => {
     loadIndicativa();
   });

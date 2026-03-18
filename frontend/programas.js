@@ -23,6 +23,94 @@ let currentPage = 1;
 const PER_PAGE = 30;
 let globalFilterOptions = null;
 
+function setupMultiSelect(selectId){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+
+  select.classList.add('multi-hidden-select');
+
+  let labelText = selectId;
+  const prev = select.previousElementSibling;
+  if(prev && prev.tagName === 'LABEL'){
+    labelText = (prev.textContent || '').trim();
+  }
+
+  let wrapper = select.nextElementSibling;
+  if(!wrapper || !wrapper.classList || !wrapper.classList.contains('multi-select')){
+    wrapper = document.createElement('div');
+    wrapper.className = 'multi-select mt-1';
+    wrapper.innerHTML = `
+      <button type="button" class="btn btn-outline-secondary btn-sm multi-select-toggle" data-target="${selectId}">
+        <span class="me-2">${labelText}</span>
+        <span class="multi-select-summary">(todos)</span>
+      </button>
+      <div class="multi-select-menu" data-target="${selectId}" style="display:none;"></div>
+    `;
+    select.parentNode.insertBefore(wrapper, select.nextSibling);
+
+    const toggle = wrapper.querySelector('.multi-select-toggle');
+    const menu = wrapper.querySelector('.multi-select-menu');
+    if(toggle && menu){
+      toggle.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const isOpen = menu.style.display === 'block';
+        document.querySelectorAll('.multi-select-menu').forEach(m => { m.style.display = 'none'; });
+        menu.style.display = isOpen ? 'none' : 'block';
+      });
+    }
+  }
+
+  const menu = wrapper.querySelector('.multi-select-menu');
+  if(!menu) return;
+
+  menu.innerHTML = '';
+  const options = Array.from(select.options || []);
+  options.forEach((opt, idx) => {
+    const value = (opt.value || '').toString();
+    if(value === '') return;
+    const id = `${selectId}_opt_${idx}`;
+    const row = document.createElement('div');
+    row.className = 'multi-select-option';
+    row.innerHTML = `
+      <input type="checkbox" id="${id}">
+      <label for="${id}" class="mb-0">${opt.text}</label>
+    `;
+    const cb = row.querySelector('input[type="checkbox"]');
+    if(cb){
+      cb.checked = opt.selected;
+      cb.dataset.value = value;
+      cb.addEventListener('change', ()=>{
+        opt.selected = cb.checked;
+        updateMultiSelectSummary(selectId);
+        currentPage = 1;
+        loadProgramas();
+      });
+    }
+    menu.appendChild(row);
+  });
+
+  updateMultiSelectSummary(selectId);
+}
+
+function updateMultiSelectSummary(selectId){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+  const wrapper = select.nextElementSibling;
+  if(!wrapper || !wrapper.classList || !wrapper.classList.contains('multi-select')) return;
+  const summaryEl = wrapper.querySelector('.multi-select-summary');
+  if(!summaryEl) return;
+
+  const options = Array.from(select.options || []).filter(o => o.value !== '');
+  const selected = options.filter(o => o.selected);
+  if(!selected.length){
+    summaryEl.textContent = '(todos)';
+  }else if(selected.length === 1){
+    summaryEl.textContent = selected[0].text;
+  }else{
+    summaryEl.textContent = `${selected.length} seleccionados`;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
   initFileCounters();
@@ -38,24 +126,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (nextBtn) nextBtn.addEventListener('click', () => changePage(1));
   document.getElementById('applyFiltersBtn').addEventListener('click', loadProgramas);
   document.getElementById('clearFiltersBtn').addEventListener('click', () => {
-    const y = document.getElementById('filterYear');
-    const m = document.getElementById('filterMunicipio');
+    ['filterYear','filterMunicipio','filterEstrategia','filterConvenio','filterVigencia'].forEach(id => {
+      const sel = document.getElementById(id);
+      if(sel){
+        Array.from(sel.options || []).forEach(o => { o.selected = false; });
+        setupMultiSelect(id);
+      }
+    });
     const nf = document.getElementById('filterNumeroFicha');
-    if (y) y.value = '';
-    if (m) m.value = '';
-    const e = document.getElementById('filterEstrategia');
-    const c = document.getElementById('filterConvenio');
-    const v = document.getElementById('filterVigencia');
     const sc = document.getElementById('filterSoloCertificados');
-    if (e) e.value = '';
-    if (c) c.value = '';
-    if (v) v.value = '';
-    if (sc) sc.checked = false;
     if (nf) nf.value = '';
+    if (sc) sc.checked = false;
     loadProgramas();
   });
   const exportBtn = document.getElementById('exportProgramasBtn');
   if (exportBtn) exportBtn.addEventListener('click', exportProgramasExcel);
+  // Cerrar menús de multi-select al hacer clic fuera
+  document.addEventListener('click', (ev)=>{
+    const target = ev.target;
+    if(!target.closest || !target.closest('.multi-select')){
+      document.querySelectorAll('.multi-select-menu').forEach(m => { m.style.display = 'none'; });
+    }
+  });
   await loadGlobalFilterOptions();
   loadProgramas();
 });
@@ -113,6 +205,8 @@ function escapeHtml(v) {
 }
 
 function toLabel(key) {
+  if (key === 'fecha_corte') return 'Fecha de corte PE-04';
+  if (key === 'cupos') return 'Aprendices matriculados';
   return String(key || '')
     .replace(/_/g, ' ')
     .split(' ')
@@ -121,24 +215,31 @@ function toLabel(key) {
 }
 
 function getFilters() {
-  const year = (document.getElementById('filterYear')?.value || '').trim();
-  const municipio = (document.getElementById('filterMunicipio')?.value || '').trim();
-  const estrategia = (document.getElementById('filterEstrategia')?.value || '').trim();
-  const convenio = (document.getElementById('filterConvenio')?.value || '').trim();
-  const vigencia = (document.getElementById('filterVigencia')?.value || '').trim();
+  const getSelectedValues = (sel) => {
+    if(!sel) return [];
+    return Array.from(sel.selectedOptions || [])
+      .map(o => (o.value || '').toString().trim())
+      .filter(v => v !== '');
+  };
+
+  const years = getSelectedValues(document.getElementById('filterYear'));
+  const municipios = getSelectedValues(document.getElementById('filterMunicipio'));
+  const estrategias = getSelectedValues(document.getElementById('filterEstrategia'));
+  const convenios = getSelectedValues(document.getElementById('filterConvenio'));
+  const vigencias = getSelectedValues(document.getElementById('filterVigencia'));
   const soloCertificados = !!document.getElementById('filterSoloCertificados')?.checked;
   const numeroFicha = (document.getElementById('filterNumeroFicha')?.value || '').trim();
-  return { year, municipio, estrategia, convenio, vigencia, soloCertificados, numeroFicha };
+  return { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha };
 }
 
 function buildUrl() {
-  const { year, municipio, estrategia, convenio, vigencia, soloCertificados, numeroFicha } = getFilters();
+  const { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
   const params = new URLSearchParams();
-  if (year) params.set('year', year);
-  if (municipio) params.set('municipio', municipio);
-  if (estrategia) params.set('estrategia', estrategia);
-  if (convenio) params.set('convenio', convenio);
-  if (vigencia) params.set('vigencia', vigencia);
+  if (years.length) params.set('year', years.join(','));
+  if (municipios.length) params.set('municipio', municipios.join(','));
+  if (estrategias.length) params.set('estrategia', estrategias.join(','));
+  if (convenios.length) params.set('convenio', convenios.join(','));
+  if (vigencias.length) params.set('vigencia', vigencias.join(','));
    if (numeroFicha) params.set('numero_ficha', numeroFicha);
   if (soloCertificados) params.set('solo_certificados', '1');
   params.set('page', String(currentPage || 1));
@@ -154,13 +255,13 @@ function getFilenameFromDisposition(contentDisposition) {
 }
 
 function buildProgramasExportUrl() {
-  const { year, municipio, estrategia, convenio, vigencia, soloCertificados, numeroFicha } = getFilters();
+  const { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
   const params = new URLSearchParams();
-  if (year) params.set('year', year);
-  if (municipio) params.set('municipio', municipio);
-  if (estrategia) params.set('estrategia', estrategia);
-  if (convenio) params.set('convenio', convenio);
-  if (vigencia) params.set('vigencia', vigencia);
+  if (years.length) params.set('year', years.join(','));
+  if (municipios.length) params.set('municipio', municipios.join(','));
+  if (estrategias.length) params.set('estrategia', estrategias.join(','));
+  if (convenios.length) params.set('convenio', convenios.join(','));
+  if (vigencias.length) params.set('vigencia', vigencias.join(','));
   if (soloCertificados) params.set('solo_certificados', '1');
   if (numeroFicha) params.set('numero_ficha', numeroFicha);
   const q = params.toString();
@@ -232,8 +333,8 @@ function populateFilterOptions(items, meta) {
   const vigEl = document.getElementById('filterVigencia');
   if (!yearEl || !muniEl || !estEl || !convEl || !vigEl) return;
 
-  const selectedYear = yearEl.value;
-  const selectedMuni = muniEl.value;
+  const selectedYears = Array.from(yearEl.selectedOptions || []).map(o => o.value);
+  const selectedMunis = Array.from(muniEl.selectedOptions || []).map(o => o.value);
 
   // Usar opciones globales calculadas en el backend para que los filtros
   // sean consistentes para toda la tabla, no solo para la pagina actual.
@@ -259,12 +360,12 @@ function populateFilterOptions(items, meta) {
     muniEl.appendChild(o);
   });
 
-  if (selectedYear) yearEl.value = selectedYear;
-  if (selectedMuni) muniEl.value = selectedMuni;
+  Array.from(yearEl.options || []).forEach(o => { o.selected = selectedYears.includes(o.value); });
+  Array.from(muniEl.options || []).forEach(o => { o.selected = selectedMunis.includes(o.value); });
 
-  const selectedEst = estEl.value;
-  const selectedConv = convEl.value;
-  const selectedVig = vigEl.value;
+  const selectedEsts = Array.from(estEl.selectedOptions || []).map(o => o.value);
+  const selectedConvs = Array.from(convEl.selectedOptions || []).map(o => o.value);
+  const selectedVigs = Array.from(vigEl.selectedOptions || []).map(o => o.value);
 
   estEl.options.length = 1;
   Array.from(estrategias).sort((a, b) => a.localeCompare(b)).forEach((v) => {
@@ -282,8 +383,8 @@ function populateFilterOptions(items, meta) {
     convEl.appendChild(o);
   });
 
-  if (selectedEst) estEl.value = selectedEst;
-  if (selectedConv) convEl.value = selectedConv;
+  Array.from(estEl.options || []).forEach(o => { o.selected = selectedEsts.includes(o.value); });
+  Array.from(convEl.options || []).forEach(o => { o.selected = selectedConvs.includes(o.value); });
 
   vigEl.options.length = 1;
   Array.from(vigencias).sort((a, b) => Number(b) - Number(a)).forEach((v) => {
@@ -292,7 +393,11 @@ function populateFilterOptions(items, meta) {
     o.text = v;
     vigEl.appendChild(o);
   });
-  if (selectedVig) vigEl.value = selectedVig;
+  Array.from(vigEl.options || []).forEach(o => { o.selected = selectedVigs.includes(o.value); });
+
+  ['filterYear','filterMunicipio','filterEstrategia','filterConvenio','filterVigencia'].forEach(id => {
+    setupMultiSelect(id);
+  });
 }
 
 function updatePagination(total, page, perPage) {

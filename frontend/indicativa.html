@@ -70,6 +70,62 @@
       body.dark-mode #status {
         color: #bfe8ca;
       }
+
+      /* Multi-select con checkboxes para filtros */
+      .multi-hidden-select {
+        display: none;
+      }
+      .multi-select {
+        position: relative;
+      }
+      .multi-select-toggle {
+        width: 100%;
+        justify-content: space-between;
+        display: flex;
+        align-items: center;
+        font-size: 0.85rem;
+      }
+      .multi-select-menu {
+        position: absolute;
+        z-index: 1000;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin-top: 4px;
+        max-height: 260px;
+        overflow-y: auto;
+        background: #ffffff;
+        border: 1px solid rgba(0,0,0,0.18);
+        border-radius: 6px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+        padding: 6px 8px;
+      }
+      body.dark-mode .multi-select-menu {
+        background: #18261d;
+        border-color: rgba(191,232,202,0.25);
+      }
+      .multi-select-option {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 2px;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+      .multi-select-option:hover {
+        background: rgba(0,120,50,0.06);
+      }
+      .multi-select-option input[type="checkbox"] {
+        margin: 0;
+      }
+      .multi-select-summary {
+        font-size: 0.78rem;
+        color: #114f2c;
+        opacity: 0.85;
+      }
+      body.dark-mode .multi-select-summary {
+        color: #bfe8ca;
+      }
     </style>
   </head>
   <body>
@@ -81,7 +137,7 @@
         </div>
         <div class="d-flex gap-2 align-items-center">
           <a href="index.html" class="btn btn-outline-light btn-sm">Modulo Inscripciones</a>
-          <a href="programas.html" class="btn btn-outline-light btn-sm">Modulo Programas</a>
+          <a href="programas.html" class="btn btn-outline-light btn-sm">Ejecucion de la Formacion</a>
           <a href="indicativa.html" class="btn btn-light btn-sm">Modulo Indicativa</a>
           <button id="themeToggle" class="btn btn-sm" type="button">🌙 Modo oscuro</button>
         </div>
@@ -109,19 +165,19 @@
         <div class="row g-2 align-items-end">
           <div class="col-md-4">
             <label class="form-label">Centro de formacion</label>
-            <select id="filterCentro" class="form-select">
+            <select id="filterCentro" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
           <div class="col-md-4">
             <label class="form-label">Nivel de formacion</label>
-            <select id="filterNivel" class="form-select">
+            <select id="filterNivel" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
           <div class="col-md-4">
             <label class="form-label">Periodo oferta</label>
-            <select id="filterPeriodoOferta" class="form-select">
+            <select id="filterPeriodoOferta" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>

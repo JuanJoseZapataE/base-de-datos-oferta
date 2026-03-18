@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Modulo Programas</title>
+    <title>Ejecucion de la Formacion</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
       :root {
@@ -75,18 +75,74 @@
         opacity: 0;
         cursor: pointer;
       }
+
+      /* Multi-select con checkboxes para filtros */
+      .multi-hidden-select {
+        display: none;
+      }
+      .multi-select {
+        position: relative;
+      }
+      .multi-select-toggle {
+        width: 100%;
+        justify-content: space-between;
+        display: flex;
+        align-items: center;
+        font-size: 0.85rem;
+      }
+      .multi-select-menu {
+        position: absolute;
+        z-index: 1000;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin-top: 4px;
+        max-height: 260px;
+        overflow-y: auto;
+        background: #ffffff;
+        border: 1px solid rgba(0,0,0,0.18);
+        border-radius: 6px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+        padding: 6px 8px;
+      }
+      body.dark-mode .multi-select-menu {
+        background: #18261d;
+        border-color: rgba(191,232,202,0.25);
+      }
+      .multi-select-option {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 2px;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+      .multi-select-option:hover {
+        background: rgba(0,120,50,0.06);
+      }
+      .multi-select-option input[type="checkbox"] {
+        margin: 0;
+      }
+      .multi-select-summary {
+        font-size: 0.78rem;
+        color: #114f2c;
+        opacity: 0.85;
+      }
+      body.dark-mode .multi-select-summary {
+        color: #bfe8ca;
+      }
     </style>
   </head>
   <body>
     <div class="container my-4">
       <div class="head d-flex justify-content-between align-items-center mb-3">
         <div>
-          <h1 class="h4 mb-0">Modulo Programas</h1>
+          <h1 class="h4 mb-0">Ejecucion de la Formacion</h1>
           <small>Tabla independiente con carga de Excel y filtros</small>
         </div>
         <div class="d-flex gap-2 align-items-center">
           <a href="index.html" class="btn btn-outline-light btn-sm">Modulo Inscripciones</a>
-          <a href="programas.html" class="btn btn-light btn-sm">Modulo Programas</a>
+          <a href="programas.html" class="btn btn-light btn-sm">Ejecucion de la Formacion</a>
           <a href="indicativa.html" class="btn btn-outline-light btn-sm">Modulo Indicativa</a>
           <button id="themeToggle" class="btn btn-sm" type="button">🌙 Modo oscuro</button>
         </div>
@@ -194,13 +250,13 @@
         <div class="row g-2 align-items-end">
           <div class="col-md-3">
             <label class="form-label">Anio (fecha de corte)</label>
-            <select id="filterYear" class="form-select">
+            <select id="filterYear" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
           <div class="col-md-5">
             <label class="form-label">Municipio</label>
-            <select id="filterMunicipio" class="form-select">
+            <select id="filterMunicipio" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
@@ -208,7 +264,7 @@
             <div class="row g-2">
               <div class="col-12">
                 <label class="form-label">Estrategia del programa</label>
-                <select id="filterEstrategia" class="form-select">
+                <select id="filterEstrategia" class="form-select" multiple>
                   <option value="">(todas)</option>
                 </select>
               </div>
@@ -222,13 +278,13 @@
           </div>
           <div class="col-md-4">
             <label class="form-label">Convenio</label>
-            <select id="filterConvenio" class="form-select">
+            <select id="filterConvenio" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
           <div class="col-md-4">
             <label class="form-label">Vigencia (año inicio)</label>
-            <select id="filterVigencia" class="form-select">
+            <select id="filterVigencia" class="form-select" multiple>
               <option value="">(todas)</option>
             </select>
           </div>
