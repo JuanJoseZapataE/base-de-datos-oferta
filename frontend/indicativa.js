@@ -22,6 +22,8 @@ let allIndicativa = [];
 let currentPage = 1;
 const PER_PAGE = 50;
 let indicativaFiltersMeta = null;
+let activeSearchIndicativa = '';
+let uniqueIndicativaDenoms = [];
 
 function setupMultiSelect(selectId){
   const select = document.getElementById(selectId);
@@ -144,6 +146,8 @@ async function loadIndicativa(){
     if(!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
     const data = await resp.json();
     allIndicativa = Array.isArray(data.items) ? data.items : [];
+    buildUniqueIndicativaDenoms();
+    updateIndicativaSearchSuggestions(activeSearchIndicativa);
     renderTable(allIndicativa);
     updatePagination(data.total || allIndicativa.length, data.page || currentPage, data.per_page || PER_PAGE);
     setStatus(`Mostrando ${allIndicativa.length} registros (total ${data.total || allIndicativa.length}).`);
@@ -175,6 +179,7 @@ function buildIndicativaUrl(){
   if(centros.length) params.set('centro', centros.join(','));
   if(niveles.length) params.set('nivel', niveles.join(','));
   if(periodos.length) params.set('periodo_oferta', periodos.join(','));
+  if(activeSearchIndicativa) params.set('search', activeSearchIndicativa);
   const q = params.toString();
   return `${API_BASE}/indicativa${q ? `?${q}` : ''}`;
 }
@@ -281,6 +286,7 @@ function buildIndicativaExportUrl(){
   if(centros.length) params.set('centro', centros.join(','));
   if(niveles.length) params.set('nivel', niveles.join(','));
   if(periodos.length) params.set('periodo_oferta', periodos.join(','));
+  if(activeSearchIndicativa) params.set('search', activeSearchIndicativa);
   const q = params.toString();
   return `${API_BASE}/indicativa/export${q ? `?${q}` : ''}`;
 }
@@ -325,6 +331,30 @@ async function loadIndicativaFilterOptions(){
     console.error('Error cargando filtros de indicativa:', e);
     indicativaFiltersMeta = null;
   }
+}
+
+function buildUniqueIndicativaDenoms(){
+  const s = new Set();
+  allIndicativa.forEach(r => {
+    const d = (r.denominacion_programa || '').toString().trim();
+    if(d) s.add(d);
+  });
+  uniqueIndicativaDenoms = Array.from(s).sort((a, b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+}
+
+function updateIndicativaSearchSuggestions(prefix){
+  const list = document.getElementById('searchIndicativaSuggestions');
+  if(!list) return;
+  const p = (prefix || '').toString().toLowerCase();
+  const matches = p
+    ? uniqueIndicativaDenoms.filter(d => d.toLowerCase().includes(p)).slice(0,25)
+    : uniqueIndicativaDenoms.slice(0,25);
+  list.innerHTML = '';
+  matches.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    list.appendChild(opt);
+  });
 }
 
 function populateIndicativaFilterOptions(){
@@ -382,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const applyBtn = document.getElementById('applyFiltersBtn');
   const clearBtn = document.getElementById('clearFiltersBtn');
   const exportBtn = document.getElementById('exportIndicativaBtn');
+  const searchInput = document.getElementById('searchIndicativa');
   if(applyBtn) applyBtn.addEventListener('click', () => { currentPage = 1; loadIndicativa(); });
   if(clearBtn) clearBtn.addEventListener('click', () => {
     ['filterCentro','filterNivel','filterPeriodoOferta'].forEach(id => {
@@ -391,10 +422,21 @@ document.addEventListener('DOMContentLoaded', () => {
         updateMultiSelectSummary(id);
       }
     });
+    if(searchInput){
+      searchInput.value = '';
+    }
+    activeSearchIndicativa = '';
     currentPage = 1;
     loadIndicativa();
   });
   if(exportBtn) exportBtn.addEventListener('click', exportIndicativaExcel);
+  if(searchInput){
+    searchInput.addEventListener('input', () => {
+      activeSearchIndicativa = (searchInput.value || '').trim();
+      currentPage = 1;
+      loadIndicativa();
+    });
+  }
   document.addEventListener('click', (ev)=>{
     const target = ev.target;
     if(!target.closest || !target.closest('.multi-select')){

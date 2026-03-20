@@ -22,6 +22,8 @@ let allItems = [];
 let currentPage = 1;
 const PER_PAGE = 30;
 let globalFilterOptions = null;
+let activeSearchPrograma = '';
+let uniqueProgramDenoms = [];
 
 function setupMultiSelect(selectId){
   const select = document.getElementById(selectId);
@@ -137,10 +139,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sc = document.getElementById('filterSoloCertificados');
     if (nf) nf.value = '';
     if (sc) sc.checked = false;
+    const sp = document.getElementById('searchPrograma');
+    if (sp) sp.value = '';
+    activeSearchPrograma = '';
     loadProgramas();
   });
   const exportBtn = document.getElementById('exportProgramasBtn');
   if (exportBtn) exportBtn.addEventListener('click', exportProgramasExcel);
+  const searchInput = document.getElementById('searchPrograma');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      activeSearchPrograma = (searchInput.value || '').trim();
+      updateProgramSearchSuggestions(activeSearchPrograma);
+      currentPage = 1;
+      loadProgramas();
+    });
+  }
   // Cerrar menús de multi-select al hacer clic fuera
   document.addEventListener('click', (ev)=>{
     const target = ev.target;
@@ -151,6 +165,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadGlobalFilterOptions();
   loadProgramas();
 });
+
+function buildUniqueProgramDenoms() {
+  const s = new Set();
+  allItems.forEach(r => {
+    const d = (r.denominacion_programa || '').toString().trim();
+    if (d) s.add(d);
+  });
+  uniqueProgramDenoms = Array.from(s).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+function updateProgramSearchSuggestions(prefix) {
+  const list = document.getElementById('searchProgramaSuggestions');
+  if (!list) return;
+  const p = (prefix || '').toString().toLowerCase();
+  const matches = p
+    ? uniqueProgramDenoms.filter(d => d.toLowerCase().includes(p)).slice(0, 25)
+    : uniqueProgramDenoms.slice(0, 25);
+  list.innerHTML = '';
+  matches.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    list.appendChild(opt);
+  });
+}
 
 async function loadGlobalFilterOptions() {
   try {
@@ -242,6 +280,7 @@ function buildUrl() {
   if (vigencias.length) params.set('vigencia', vigencias.join(','));
    if (numeroFicha) params.set('numero_ficha', numeroFicha);
   if (soloCertificados) params.set('solo_certificados', '1');
+  if (activeSearchPrograma) params.set('search', activeSearchPrograma);
   params.set('page', String(currentPage || 1));
   params.set('per_page', String(PER_PAGE));
   const q = params.toString();
@@ -264,6 +303,7 @@ function buildProgramasExportUrl() {
   if (vigencias.length) params.set('vigencia', vigencias.join(','));
   if (soloCertificados) params.set('solo_certificados', '1');
   if (numeroFicha) params.set('numero_ficha', numeroFicha);
+  if (activeSearchPrograma) params.set('search', activeSearchPrograma);
   const q = params.toString();
   return `${API_BASE}/programas/export${q ? `?${q}` : ''}`;
 }
@@ -306,6 +346,8 @@ async function loadProgramas() {
     const data = await resp.json();
     allItems = Array.isArray(data.items) ? data.items : [];
 
+    buildUniqueProgramDenoms();
+    updateProgramSearchSuggestions(activeSearchPrograma);
     renderTable(allItems);
     updateHeaderInfo(data.fecha_corte, data.total || allItems.length);
     populateFilterOptions(allItems, data);

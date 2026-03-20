@@ -1056,6 +1056,7 @@ def get_indicativa(
     centro: Optional[str] = None,
     nivel: Optional[str] = None,
     periodo_oferta: Optional[str] = None,
+    search: Optional[str] = None,
 ):
     """Listado paginado de la tabla indicativa para el frontend, con filtros opcionales."""
     try:
@@ -1116,6 +1117,11 @@ def get_indicativa(
                 clauses.append('LOWER(TRIM(periodo_oferta)) IN (' + ','.join(in_keys) + ')')
             if 'periodo_oferta_0' not in params and periodos:
                 params['periodo_oferta_0'] = periodos[0]
+    if search:
+        s = str(search).strip().lower()
+        if s:
+            clauses.append('LOWER(TRIM(nombre_programa)) LIKE :search')
+            params['search'] = f'%{s}%'
 
     where_sql = ''
     if clauses:
@@ -1181,6 +1187,7 @@ def export_indicativa_excel(
     centro: Optional[str] = None,
     nivel: Optional[str] = None,
     periodo_oferta: Optional[str] = None,
+    search: Optional[str] = None,
 ):
     """Exporta Excel de la tabla indicativa respetando los filtros activos."""
     clauses = []
@@ -1228,6 +1235,11 @@ def export_indicativa_excel(
                 clauses.append('LOWER(TRIM(periodo_oferta)) IN (' + ','.join(in_keys) + ')')
             if 'periodo_oferta_0' not in params and periodos:
                 params['periodo_oferta_0'] = periodos[0]
+    if search:
+        s = str(search).strip().lower()
+        if s:
+            clauses.append('LOWER(TRIM(nombre_programa)) LIKE :search')
+            params['search'] = f'%{s}%'
 
     where_sql = ''
     if clauses:
@@ -2057,6 +2069,7 @@ def get_programas(
     convenio: Optional[str] = None,
     vigencia: Optional[str] = None,
     numero_ficha: Optional[int] = None,
+    search: Optional[str] = None,
     solo_certificados: Optional[str] = None,
     page: int = 1,
     per_page: int = 30,
@@ -2153,6 +2166,11 @@ def get_programas(
     if numero_ficha is not None:
         clauses.append('numero_ficha = :numero_ficha')
         params['numero_ficha'] = int(numero_ficha)
+    if search:
+        s = str(search).strip().lower()
+        if s:
+            clauses.append('LOWER(TRIM(denominacion_programa)) LIKE :search')
+            params['search'] = f'%{s}%'
     # solo_certificados: cualquier valor no vacio/"0"/"false" activa el filtro
     if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
         clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
@@ -2228,6 +2246,7 @@ def export_programas_excel(
     convenio: Optional[str] = None,
     vigencia: Optional[str] = None,
     numero_ficha: Optional[int] = None,
+    search: Optional[str] = None,
     solo_certificados: Optional[str] = None,
 ):
     """Exporta Excel de programas_formacion respetando los filtros activos."""
@@ -2307,6 +2326,11 @@ def export_programas_excel(
     if numero_ficha is not None:
         clauses.append('numero_ficha = :numero_ficha')
         params['numero_ficha'] = int(numero_ficha)
+    if search:
+        s = str(search).strip().lower()
+        if s:
+            clauses.append('LOWER(TRIM(denominacion_programa)) LIKE :search')
+            params['search'] = f'%{s}%'
     if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
         clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
 
