@@ -20,7 +20,7 @@ function initThemeToggle() {
 const API_BASE = 'http://127.0.0.1:8000';
 let allItems = [];
 let currentPage = 1;
-const PER_PAGE = 30;
+const PER_PAGE = 20;
 let globalFilterOptions = null;
 let activeSearchPrograma = '';
 let uniqueProgramDenoms = [];
@@ -252,6 +252,19 @@ function toLabel(key) {
     .join(' ');
 }
 
+// Helpers numéricos similares al módulo de fichas
+function toNumberProgramas(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const cleaned = String(v).trim().replace(/\./g, '').replace(',', '.');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatNumberProgramas(n) {
+  return new Intl.NumberFormat('es-CO').format(n || 0);
+}
+
 function getFilters() {
   const getSelectedValues = (sel) => {
     if(!sel) return [];
@@ -308,6 +321,22 @@ function buildProgramasExportUrl() {
   return `${API_BASE}/programas/export${q ? `?${q}` : ''}`;
 }
 
+// URL para obtener TODOS los programas filtrados (sin paginación) para totales
+function buildProgramasAllUrl() {
+  const { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
+  const params = new URLSearchParams();
+  if (years.length) params.set('year', years.join(','));
+  if (municipios.length) params.set('municipio', municipios.join(','));
+  if (estrategias.length) params.set('estrategia', estrategias.join(','));
+  if (convenios.length) params.set('convenio', convenios.join(','));
+  if (vigencias.length) params.set('vigencia', vigencias.join(','));
+  if (soloCertificados) params.set('solo_certificados', '1');
+  if (numeroFicha) params.set('numero_ficha', numeroFicha);
+  if (activeSearchPrograma) params.set('search', activeSearchPrograma);
+  const q = params.toString();
+  return `${API_BASE}/programas/all${q ? `?${q}` : ''}`;
+}
+
 async function exportProgramasExcel() {
   setStatus('Generando Excel de programas...');
   try {
@@ -350,6 +379,8 @@ async function loadProgramas() {
     updateProgramSearchSuggestions(activeSearchPrograma);
     renderTable(allItems);
     updateHeaderInfo(data.fecha_corte, data.total || allItems.length);
+    // Totales globales: sumar todos los registros que cumplen los filtros (no solo la página actual)
+    fetchAllProgramasAndUpdateTotales();
     populateFilterOptions(allItems, data);
     updatePagination(data.total || 0, data.page || currentPage, data.per_page || PER_PAGE);
 
@@ -359,6 +390,45 @@ async function loadProgramas() {
     console.error(e);
   }
 }
+
+// Obtener todos los registros filtrados desde el backend y actualizar los totales (lógica tipo fichas)
+async function fetchAllProgramasAndUpdateTotales() {
+  try {
+    const url = buildProgramasAllUrl();
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+    const items = await resp.json();
+    const rows = Array.isArray(items) ? items : [];
+    updateProgramasTotalsSummary(rows);
+  } catch (e) {
+    // Si falla, dejar los totales en cero
+    updateProgramasTotalsSummary([]);
+    console.error('Error actualizando totales de programas:', e);
+  }
+}
+
+// Sumar matriculados (cupos), activos y certificados sobre el conjunto filtrado completo
+function updateProgramasTotalsSummary(rows) {
+  const totals = rows.reduce((acc, r) => {
+    acc.matriculados += toNumberProgramas(r.cupos ?? r.cupo);
+    acc.activos += toNumberProgramas(r.aprendices_activos);
+    acc.certificados += toNumberProgramas(r.certificado);
+    return acc;
+  }, { matriculados: 0, activos: 0, certificados: 0 });
+
+  const elRows = document.getElementById('sumProgRegistros');
+  const elMat = document.getElementById('sumProgMatriculados');
+  const elAct = document.getElementById('sumProgActivos');
+  const elCert = document.getElementById('sumProgCertificados');
+
+  if (elRows) elRows.textContent = formatNumberProgramas(rows.length);
+  if (elMat) elMat.textContent = formatNumberProgramas(totals.matriculados);
+  if (elAct) elAct.textContent = formatNumberProgramas(totals.activos);
+  if (elCert) elCert.textContent = formatNumberProgramas(totals.certificados);
+}
+
+
+
 
 function updateHeaderInfo(fechaCorte, total) {
   const fc = document.getElementById('fechaCorteValue');

@@ -1,3 +1,5 @@
+# ...existing code...
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
@@ -7,6 +9,7 @@ from typing import List, Optional
 import pandas as pd
 import io
 import os
+import math
 from datetime import datetime, date, time
 import re
 import unicodedata
@@ -20,12 +23,150 @@ from openpyxl.styles import Alignment, Font
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 
+
+
+
 # URL de la base de datos: editar o usar la variable de entorno DATABASE_URL
 # Ejemplo: mysql+pymysql://root:password@localhost/sena_oferta
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root@127.0.0.1/Oferta")
 
 engine = create_engine(DATABASE_URL)
 app = FastAPI(title="Importador Excel -> MySQL (sena_oferta)")
+
+
+
+# Endpoint para traer todos los programas filtrados (sin paginación)
+@app.get('/programas/all')
+def programas_all(
+    year: Optional[str] = None,
+    municipio: Optional[str] = None,
+    estrategia: Optional[str] = None,
+    convenio: Optional[str] = None,
+    vigencia: Optional[str] = None,
+    numero_ficha: Optional[int] = None,
+    search: Optional[str] = None,
+    solo_certificados: Optional[str] = None,
+):
+    clauses = []
+    params: dict = {}
+    if year is not None:
+        years = [y.strip() for y in str(year).split(',') if y.strip()]
+        if years:
+            if len(years) == 1:
+                clauses.append('YEAR(fecha_corte) = :year_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(years):
+                    key = f'year_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = int(val)
+                clauses.append('YEAR(fecha_corte) IN (' + ','.join(in_keys) + ')')
+            if 'year_0' not in params and years:
+                params['year_0'] = int(years[0])
+    if municipio:
+        municipios = [m.strip().lower() for m in str(municipio).split(',') if m.strip()]
+        if municipios:
+            if len(municipios) == 1:
+                clauses.append('LOWER(TRIM(ciudad_municipio)) = :municipio_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(municipios):
+                    key = f'municipio_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
+            if 'municipio_0' not in params and municipios:
+                params['municipio_0'] = municipios[0]
+    if estrategia:
+        estrategias = [e.strip().lower() for e in str(estrategia).split(',') if e.strip()]
+        if estrategias:
+            if len(estrategias) == 1:
+                clauses.append('LOWER(TRIM(estrategia_programa)) = :estrategia_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(estrategias):
+                    key = f'estrategia_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(estrategia_programa)) IN (' + ','.join(in_keys) + ')')
+            if 'estrategia_0' not in params and estrategias:
+                params['estrategia_0'] = estrategias[0]
+    if convenio:
+        convenios = [c.strip().lower() for c in str(convenio).split(',') if c.strip()]
+        if convenios:
+            if len(convenios) == 1:
+                clauses.append('LOWER(TRIM(convenio)) = :convenio_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(convenios):
+                    key = f'convenio_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(convenio)) IN (' + ','.join(in_keys) + ')')
+            if 'convenio_0' not in params and convenios:
+                params['convenio_0'] = convenios[0]
+    if vigencia is not None:
+        vigencias = [v.strip() for v in str(vigencia).split(',') if v.strip()]
+        if vigencias:
+            if len(vigencias) == 1:
+                clauses.append('YEAR(fecha_inicio) = :vigencia_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(vigencias):
+                    key = f'vigencia_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = int(val)
+                clauses.append('YEAR(fecha_inicio) IN (' + ','.join(in_keys) + ')')
+            if 'vigencia_0' not in params and vigencias:
+                params['vigencia_0'] = int(vigencias[0])
+    if numero_ficha is not None:
+        clauses.append('numero_ficha = :numero_ficha')
+        params['numero_ficha'] = int(numero_ficha)
+    if search:
+        s = str(search).strip().lower()
+        if s:
+            clauses.append('LOWER(TRIM(denominacion_programa)) LIKE :search')
+            params['search'] = f'%{s}%'
+    if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
+        clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
+
+    where_sql = ''
+    if clauses:
+        where_sql = ' WHERE ' + ' AND '.join(clauses)
+
+    sql = f'SELECT * FROM programas_formacion{where_sql} ORDER BY fecha_corte DESC, numero_ficha ASC, id ASC'
+    try:
+        df = pd.read_sql(text(sql), con=engine, params=params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error consultando programas: {e}')
+
+    data = []
+    if not df.empty:
+        # Limpiar infinitos primero
+        df = df.replace([float('inf'), float('-inf')], pd.NA)
+
+        # Convertir columnas de fecha/tiempo a cadenas ISO para que sean JSON serializables
+        for col in ['fecha_inicio', 'fecha_fin', 'fecha_corte']:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+                df[col] = df[col].apply(
+                    lambda v: v.isoformat() if hasattr(v, 'isoformat') else v
+                )
+
+        # Pasar a lista de dicts y reemplazar NaN/inf por None para que JSON los acepte
+        raw_records = df.to_dict(orient='records')
+        cleaned_records = []
+        for row in raw_records:
+            for key, value in list(row.items()):
+                if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                    row[key] = None
+            cleaned_records.append(row)
+        data = cleaned_records
+
+    return JSONResponse(data)
+
+
+
 
 # Habilitar CORS para permitir peticiones desde el frontend local
 app.add_middleware(
@@ -1056,6 +1197,7 @@ def get_indicativa(
     centro: Optional[str] = None,
     nivel: Optional[str] = None,
     periodo_oferta: Optional[str] = None,
+    municipio: Optional[str] = None,
     search: Optional[str] = None,
 ):
     """Listado paginado de la tabla indicativa para el frontend, con filtros opcionales."""
@@ -1117,6 +1259,20 @@ def get_indicativa(
                 clauses.append('LOWER(TRIM(periodo_oferta)) IN (' + ','.join(in_keys) + ')')
             if 'periodo_oferta_0' not in params and periodos:
                 params['periodo_oferta_0'] = periodos[0]
+    if municipio:
+        municipios = [m.strip().lower() for m in str(municipio).split(',') if m.strip()]
+        if municipios:
+            if len(municipios) == 1:
+                clauses.append('LOWER(TRIM(municipio_formacion)) = :municipio_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(municipios):
+                    key = f'municipio_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(municipio_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'municipio_0' not in params and municipios:
+                params['municipio_0'] = municipios[0]
     if search:
         s = str(search).strip().lower()
         if s:
@@ -1137,7 +1293,7 @@ def get_indicativa(
 
     offset = (page - 1) * per_page
     sql = (
-        'SELECT id, nombre_sede, nivel_de_formacion, nombre_programa, '
+        'SELECT id, nombre_sede, municipio_formacion, nivel_de_formacion, nombre_programa, '
         'periodo_oferta, tipo_de_oferta '
         'FROM indicativa'
         f'{where_sql} '
@@ -1165,6 +1321,7 @@ def get_indicativa(
             {
                 'id': row.get('id'),
                 'centro_formacion': row.get('nombre_sede'),
+                'municipio_formacion': row.get('municipio_formacion'),
                 'nivel_formacion': row.get('nivel_de_formacion'),
                 'denominacion_programa': row.get('nombre_programa'),
                 'periodo_oferta': row.get('periodo_oferta'),
@@ -1172,13 +1329,23 @@ def get_indicativa(
             }
         )
 
+    # Asegurar que no queden NaN/inf en los datos antes de serializar a JSON
+    cleaned_items = []
+    for row in mapped_items:
+        for key, value in list(row.items()):
+            if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                row[key] = None
+        cleaned_items.append(row)
+
     return JSONResponse(
-        {
-            'items': mapped_items,
-            'total': int(total),
-            'page': page,
-            'per_page': per_page,
-        }
+        content=jsonable_encoder(
+            {
+                'items': cleaned_items,
+                'total': int(total),
+                'page': page,
+                'per_page': per_page,
+            }
+        )
     )
 
 
@@ -1187,6 +1354,7 @@ def export_indicativa_excel(
     centro: Optional[str] = None,
     nivel: Optional[str] = None,
     periodo_oferta: Optional[str] = None,
+    municipio: Optional[str] = None,
     search: Optional[str] = None,
 ):
     """Exporta Excel de la tabla indicativa respetando los filtros activos."""
@@ -1235,6 +1403,20 @@ def export_indicativa_excel(
                 clauses.append('LOWER(TRIM(periodo_oferta)) IN (' + ','.join(in_keys) + ')')
             if 'periodo_oferta_0' not in params and periodos:
                 params['periodo_oferta_0'] = periodos[0]
+    if municipio:
+        municipios = [m.strip().lower() for m in str(municipio).split(',') if m.strip()]
+        if municipios:
+            if len(municipios) == 1:
+                clauses.append('LOWER(TRIM(municipio_formacion)) = :municipio_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(municipios):
+                    key = f'municipio_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(municipio_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'municipio_0' not in params and municipios:
+                params['municipio_0'] = municipios[0]
     if search:
         s = str(search).strip().lower()
         if s:
@@ -1359,6 +1541,13 @@ def get_indicativa_filters():
                 ).fetchall()
                 if r[0] is not None
             ]
+            municipios = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT municipio_formacion FROM indicativa WHERE municipio_formacion IS NOT NULL ORDER BY municipio_formacion ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error obteniendo filtros de indicativa: {e}')
 
@@ -1368,6 +1557,7 @@ def get_indicativa_filters():
                 'centros': centros,
                 'niveles': niveles,
                 'periodos_oferta': periodos,
+                'municipios': municipios,
             }
         )
     )
@@ -2082,13 +2272,13 @@ def get_programas(
     try:
         per_page = int(per_page)
     except Exception:
-        per_page = 30
+        per_page = 20
     if page < 1:
         page = 1
     if per_page < 1:
-        per_page = 30
-    if per_page > 30:
-        per_page = 30
+        per_page = 20
+    if per_page > 20:
+        per_page = 20
 
     clauses = []
     params: dict = {}
@@ -2178,6 +2368,7 @@ def get_programas(
     where_sql = ''
     if clauses:
         where_sql = ' WHERE ' + ' AND '.join(clauses)
+
 
     count_sql = f'SELECT COUNT(*) AS total FROM programas_formacion{where_sql}'
     try:

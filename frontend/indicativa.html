@@ -163,21 +163,27 @@
       <div class="card p-3 mb-3">
         <h5>Filtros</h5>
         <div class="row g-2 align-items-end">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Centro de formacion</label>
             <select id="filterCentro" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Nivel de formacion</label>
             <select id="filterNivel" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Periodo oferta</label>
             <select id="filterPeriodoOferta" class="form-select" multiple>
+              <option value="">(todos)</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Municipio de formacion</label>
+            <select id="filterMunicipio" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
@@ -216,6 +222,7 @@
               <tr>
                 <th>ID</th>
                 <th>Centro de formacion</th>
+                <th>Municipio formacion</th>
                 <th>Nivel de formacion</th>
                 <th>Denominacion del programa</th>
                 <th>Periodo oferta</th>

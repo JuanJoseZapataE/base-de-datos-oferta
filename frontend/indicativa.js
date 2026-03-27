@@ -168,17 +168,19 @@ function getIndicativaFilters(){
   const centros = getSelectedValues(document.getElementById('filterCentro'));
   const niveles = getSelectedValues(document.getElementById('filterNivel'));
   const periodos = getSelectedValues(document.getElementById('filterPeriodoOferta'));
-  return { centros, niveles, periodos };
+  const municipios = getSelectedValues(document.getElementById('filterMunicipio'));
+  return { centros, niveles, periodos, municipios };
 }
 
 function buildIndicativaUrl(){
-  const { centros, niveles, periodos } = getIndicativaFilters();
+  const { centros, niveles, periodos, municipios } = getIndicativaFilters();
   const params = new URLSearchParams();
   params.set('page', String(currentPage || 1));
   params.set('per_page', String(PER_PAGE));
   if(centros.length) params.set('centro', centros.join(','));
   if(niveles.length) params.set('nivel', niveles.join(','));
   if(periodos.length) params.set('periodo_oferta', periodos.join(','));
+   if(municipios.length) params.set('municipio', municipios.join(','));
   if(activeSearchIndicativa) params.set('search', activeSearchIndicativa);
   const q = params.toString();
   return `${API_BASE}/indicativa${q ? `?${q}` : ''}`;
@@ -209,7 +211,7 @@ function renderTable(rows){
   tbody.innerHTML = '';
   if(!rows.length){
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="6" class="text-center">No hay datos</td>';
+    tr.innerHTML = '<td colspan="7" class="text-center">No hay datos</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -220,6 +222,7 @@ function renderTable(rows){
     tr.innerHTML = `
       <td>${escapeHtml(displayId)}</td>
       <td>${escapeHtml(row.centro_formacion)}</td>
+      <td>${escapeHtml(row.municipio_formacion)}</td>
       <td>${escapeHtml(row.nivel_formacion)}</td>
       <td>${escapeHtml(row.denominacion_programa)}</td>
       <td>${escapeHtml(row.periodo_oferta)}</td>
@@ -281,11 +284,12 @@ function getFilenameFromDisposition(contentDisposition){
 }
 
 function buildIndicativaExportUrl(){
-  const { centros, niveles, periodos } = getIndicativaFilters();
+  const { centros, niveles, periodos, municipios } = getIndicativaFilters();
   const params = new URLSearchParams();
   if(centros.length) params.set('centro', centros.join(','));
   if(niveles.length) params.set('nivel', niveles.join(','));
   if(periodos.length) params.set('periodo_oferta', periodos.join(','));
+  if(municipios.length) params.set('municipio', municipios.join(','));
   if(activeSearchIndicativa) params.set('search', activeSearchIndicativa);
   const q = params.toString();
   return `${API_BASE}/indicativa/export${q ? `?${q}` : ''}`;
@@ -362,11 +366,13 @@ function populateIndicativaFilterOptions(){
   const centroEl = document.getElementById('filterCentro');
   const nivelEl = document.getElementById('filterNivel');
   const periodoEl = document.getElementById('filterPeriodoOferta');
-  if(!centroEl || !nivelEl || !periodoEl) return;
+  const municipioEl = document.getElementById('filterMunicipio');
+  if(!centroEl || !nivelEl || !periodoEl || !municipioEl) return;
 
   const selectedCentros = Array.from(centroEl.selectedOptions || []).map(o => o.value);
   const selectedNiveles = Array.from(nivelEl.selectedOptions || []).map(o => o.value);
   const selectedPeriodos = Array.from(periodoEl.selectedOptions || []).map(o => o.value);
+  const selectedMunicipios = Array.from(municipioEl.selectedOptions || []).map(o => o.value);
 
   centroEl.options.length = 1;
   (indicativaFiltersMeta.centros || []).forEach(v => {
@@ -392,11 +398,20 @@ function populateIndicativaFilterOptions(){
     periodoEl.appendChild(o);
   });
 
+  municipioEl.options.length = 1;
+  (indicativaFiltersMeta.municipios || []).forEach(v => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    municipioEl.appendChild(o);
+  });
+
   Array.from(centroEl.options || []).forEach(o => { o.selected = selectedCentros.includes(o.value); });
   Array.from(nivelEl.options || []).forEach(o => { o.selected = selectedNiveles.includes(o.value); });
   Array.from(periodoEl.options || []).forEach(o => { o.selected = selectedPeriodos.includes(o.value); });
+  Array.from(municipioEl.options || []).forEach(o => { o.selected = selectedMunicipios.includes(o.value); });
 
-  ['filterCentro','filterNivel','filterPeriodoOferta'].forEach(id => {
+  ['filterCentro','filterNivel','filterPeriodoOferta','filterMunicipio'].forEach(id => {
     setupMultiSelect(id);
   });
 }
@@ -415,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('searchIndicativa');
   if(applyBtn) applyBtn.addEventListener('click', () => { currentPage = 1; loadIndicativa(); });
   if(clearBtn) clearBtn.addEventListener('click', () => {
-    ['filterCentro','filterNivel','filterPeriodoOferta'].forEach(id => {
+    ['filterCentro','filterNivel','filterPeriodoOferta','filterMunicipio'].forEach(id => {
       const sel = document.getElementById(id);
       if(sel){
         Array.from(sel.options || []).forEach(o => { o.selected = false; });
