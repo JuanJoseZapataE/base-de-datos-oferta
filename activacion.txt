@@ -2,4 +2,6 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 .\fastapi_app\oferta\Scripts\Activate.ps1
 
+
 python -m uvicorn fastapi_app.main:app --reload
+
