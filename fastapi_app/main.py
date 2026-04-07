@@ -40,6 +40,8 @@ app = FastAPI(title="Importador Excel -> MySQL (sena_oferta)")
 def programas_all(
     year: Optional[str] = None,
     municipio: Optional[str] = None,
+    centro: Optional[str] = None,
+    nivel: Optional[str] = None,
     estrategia: Optional[str] = None,
     convenio: Optional[str] = None,
     vigencia: Optional[str] = None,
@@ -77,6 +79,34 @@ def programas_all(
                 clauses.append('LOWER(TRIM(ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
             if 'municipio_0' not in params and municipios:
                 params['municipio_0'] = municipios[0]
+    if centro:
+        centros = [c.strip().lower() for c in str(centro).split(',') if c.strip()]
+        if centros:
+            if len(centros) == 1:
+                clauses.append('LOWER(TRIM(centro_formacion)) = :centro_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(centros):
+                    key = f'centro_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(centro_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'centro_0' not in params and centros:
+                params['centro_0'] = centros[0]
+    if nivel:
+        niveles = [n.strip().lower() for n in str(nivel).split(',') if n.strip()]
+        if niveles:
+            if len(niveles) == 1:
+                clauses.append('LOWER(TRIM(nivel_formacion)) = :nivel_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(niveles):
+                    key = f'nivel_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(nivel_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'nivel_0' not in params and niveles:
+                params['nivel_0'] = niveles[0]
     if estrategia:
         estrategias = [e.strip().lower() for e in str(estrategia).split(',') if e.strip()]
         if estrategias:
@@ -1563,6 +1593,42 @@ def get_indicativa_filters():
     )
 
 
+@app.delete('/indicativa/delete-all')
+def delete_indicativa_all():
+    """Elimina todos los registros de la tabla indicativa."""
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text('DELETE FROM indicativa'))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error eliminando todos los registros de indicativa: {e}')
+
+    return JSONResponse({'deleted_rows': int(result.rowcount or 0)})
+
+
+@app.delete('/indicativa/{indicativa_id}')
+def delete_indicativa_by_id(indicativa_id: int):
+    """Elimina un registro de indicativa por su id."""
+    try:
+        with engine.begin() as conn:
+            exists = conn.execute(
+                text('SELECT COUNT(*) FROM indicativa WHERE id = :id'),
+                {'id': int(indicativa_id)},
+            ).scalar() or 0
+            if int(exists) == 0:
+                raise HTTPException(status_code=404, detail='Registro de indicativa no encontrado')
+
+            result = conn.execute(
+                text('DELETE FROM indicativa WHERE id = :id'),
+                {'id': int(indicativa_id)},
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error eliminando registro de indicativa: {e}')
+
+    return JSONResponse({'deleted_rows': int(result.rowcount or 0), 'id': int(indicativa_id)})
+
+
 @app.get('/fichas/export')
 def export_fichas_excel(
     centro: Optional[str] = None,
@@ -1755,23 +1821,29 @@ def export_fichas_excel(
 
 
 @app.post('/programas/upload-excel')
-async def upload_programas_excel(file: UploadFile = File(...)):
-    """Subida normal de programas: requiere fecha_corte en nombre o celda A3.
+async def upload_programas_excel(
+    file: UploadFile = File(...),
+    fecha_corte_manual: Optional[date] = Form(None),
+):
+    """Subida normal de programas.
 
-    Se mantiene el comportamiento existente para no romper el flujo actual.
+    Prioriza la fecha de corte manual enviada por el frontend.
+    Si no se envia, usa compatibilidad con nombre del archivo o celda A3.
     """
     if not file.filename.lower().endswith(('.xls', '.xlsx', '.xml')):
         raise HTTPException(status_code=400, detail='El archivo debe ser .xls, .xlsx o .xml')
 
     content = await file.read()
-    fecha_corte_file = extract_fecha_corte_from_filename(file.filename or '')
+    fecha_corte_file = fecha_corte_manual
+    if not fecha_corte_file:
+        fecha_corte_file = extract_fecha_corte_from_filename(file.filename or '')
     # Si el nombre no trae fecha, intentar leerla desde el contenido (A3)
     if not fecha_corte_file and file.filename.lower().endswith(('.xls', '.xlsx')):
         fecha_corte_file = extract_fecha_corte_from_excel_content(content)
     if not fecha_corte_file:
         raise HTTPException(
             status_code=400,
-            detail='No se pudo obtener fecha_corte ni del nombre del archivo ni de la celda A3 del Excel.',
+            detail='No se pudo obtener fecha_corte. Envia fecha_corte_manual o usa un archivo con fecha en nombre/celda A3.',
         )
 
     stats = _process_programas_excel(content=content, filename=file.filename or '', fecha_corte_file=fecha_corte_file)
@@ -2255,6 +2327,8 @@ async def upload_programas_certificados(file: UploadFile = File(...)):
 def get_programas(
     year: Optional[str] = None,
     municipio: Optional[str] = None,
+    centro: Optional[str] = None,
+    nivel: Optional[str] = None,
     estrategia: Optional[str] = None,
     convenio: Optional[str] = None,
     vigencia: Optional[str] = None,
@@ -2311,6 +2385,34 @@ def get_programas(
                 clauses.append('LOWER(TRIM(ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
             if 'municipio_0' not in params and municipios:
                 params['municipio_0'] = municipios[0]
+    if centro:
+        centros = [c.strip().lower() for c in str(centro).split(',') if c.strip()]
+        if centros:
+            if len(centros) == 1:
+                clauses.append('LOWER(TRIM(centro_formacion)) = :centro_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(centros):
+                    key = f'centro_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(centro_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'centro_0' not in params and centros:
+                params['centro_0'] = centros[0]
+    if nivel:
+        niveles = [n.strip().lower() for n in str(nivel).split(',') if n.strip()]
+        if niveles:
+            if len(niveles) == 1:
+                clauses.append('LOWER(TRIM(nivel_formacion)) = :nivel_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(niveles):
+                    key = f'nivel_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(nivel_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'nivel_0' not in params and niveles:
+                params['nivel_0'] = niveles[0]
     if estrategia:
         estrategias = [e.strip().lower() for e in str(estrategia).split(',') if e.strip()]
         if estrategias:
@@ -2433,6 +2535,7 @@ def get_programas(
 def export_programas_excel(
     year: Optional[str] = None,
     municipio: Optional[str] = None,
+    centro: Optional[str] = None,
     estrategia: Optional[str] = None,
     convenio: Optional[str] = None,
     vigencia: Optional[str] = None,
@@ -2472,6 +2575,20 @@ def export_programas_excel(
                 clauses.append('LOWER(TRIM(ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
             if 'municipio_0' not in params and municipios:
                 params['municipio_0'] = municipios[0]
+    if centro:
+        centros = [c.strip().lower() for c in str(centro).split(',') if c.strip()]
+        if centros:
+            if len(centros) == 1:
+                clauses.append('LOWER(TRIM(centro_formacion)) = :centro_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(centros):
+                    key = f'centro_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = val
+                clauses.append('LOWER(TRIM(centro_formacion)) IN (' + ','.join(in_keys) + ')')
+            if 'centro_0' not in params and centros:
+                params['centro_0'] = centros[0]
     if estrategia:
         estrategias = [e.strip().lower() for e in str(estrategia).split(',') if e.strip()]
         if estrategias:
@@ -2642,6 +2759,22 @@ def get_programas_filters():
                 if r[0] is not None
             ]
 
+            centros = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT centro_formacion FROM programas_formacion WHERE centro_formacion IS NOT NULL ORDER BY centro_formacion ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+
+            niveles = [
+                str(r[0])
+                for r in conn.execute(
+                    text('SELECT DISTINCT nivel_formacion FROM programas_formacion WHERE nivel_formacion IS NOT NULL ORDER BY nivel_formacion ASC')
+                ).fetchall()
+                if r[0] is not None
+            ]
+
             estrategias = [
                 str(r[0])
                 for r in conn.execute(
@@ -2666,11 +2799,48 @@ def get_programas_filters():
                 'years': years,
                 'vigencias': vigencias,
                 'municipios': municipios,
+                'centros': centros,
+                'niveles': niveles,
                 'estrategias': estrategias,
                 'convenios': convenios,
             }
         )
     )
+
+
+@app.delete('/programas/delete-all')
+def delete_programas_all():
+    """Elimina todos los registros de programas_formacion."""
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text('DELETE FROM programas_formacion'))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error eliminando todos los programas: {e}')
+
+    return JSONResponse({'deleted_rows': int(result.rowcount or 0)})
+
+
+@app.delete('/programas/delete-by-vigencia')
+def delete_programas_by_vigencia(vigencia: int):
+    """Elimina registros por vigencia (anio de fecha_inicio)."""
+    try:
+        vig = int(vigencia)
+    except Exception:
+        raise HTTPException(status_code=400, detail='La vigencia es invalida')
+
+    if vig < 1900 or vig > 2100:
+        raise HTTPException(status_code=400, detail='La vigencia debe estar entre 1900 y 2100')
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text('DELETE FROM programas_formacion WHERE YEAR(fecha_inicio) = :vigencia'),
+                {'vigencia': vig},
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error eliminando programas por vigencia: {e}')
+
+    return JSONResponse({'vigencia': vig, 'deleted_rows': int(result.rowcount or 0)})
 
 
 class UpdateRequest(BaseModel):

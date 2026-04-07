@@ -127,8 +127,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (prevBtn) prevBtn.addEventListener('click', () => changePage(-1));
   if (nextBtn) nextBtn.addEventListener('click', () => changePage(1));
   document.getElementById('applyFiltersBtn').addEventListener('click', loadProgramas);
+  const deleteAllBtn = document.getElementById('deleteAllProgramasBtn');
+  if (deleteAllBtn) deleteAllBtn.addEventListener('click', deleteAllProgramas);
+  const deleteVigBtn = document.getElementById('deleteByVigenciaBtn');
+  if (deleteVigBtn) deleteVigBtn.addEventListener('click', deleteProgramasByVigencia);
   document.getElementById('clearFiltersBtn').addEventListener('click', () => {
-    ['filterYear','filterMunicipio','filterEstrategia','filterConvenio','filterVigencia'].forEach(id => {
+    ['filterYear','filterMunicipio','filterCentro','filterNivel','filterEstrategia','filterConvenio','filterVigencia'].forEach(id => {
       const sel = document.getElementById(id);
       if(sel){
         Array.from(sel.options || []).forEach(o => { o.selected = false; });
@@ -275,19 +279,23 @@ function getFilters() {
 
   const years = getSelectedValues(document.getElementById('filterYear'));
   const municipios = getSelectedValues(document.getElementById('filterMunicipio'));
+  const centros = getSelectedValues(document.getElementById('filterCentro'));
+  const niveles = getSelectedValues(document.getElementById('filterNivel'));
   const estrategias = getSelectedValues(document.getElementById('filterEstrategia'));
   const convenios = getSelectedValues(document.getElementById('filterConvenio'));
   const vigencias = getSelectedValues(document.getElementById('filterVigencia'));
   const soloCertificados = !!document.getElementById('filterSoloCertificados')?.checked;
   const numeroFicha = (document.getElementById('filterNumeroFicha')?.value || '').trim();
-  return { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha };
+  return { years, municipios, centros, niveles, estrategias, convenios, vigencias, soloCertificados, numeroFicha };
 }
 
 function buildUrl() {
-  const { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
+  const { years, municipios, centros, niveles, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
   const params = new URLSearchParams();
   if (years.length) params.set('year', years.join(','));
   if (municipios.length) params.set('municipio', municipios.join(','));
+  if (centros.length) params.set('centro', centros.join(','));
+  if (niveles.length) params.set('nivel', niveles.join(','));
   if (estrategias.length) params.set('estrategia', estrategias.join(','));
   if (convenios.length) params.set('convenio', convenios.join(','));
   if (vigencias.length) params.set('vigencia', vigencias.join(','));
@@ -307,10 +315,12 @@ function getFilenameFromDisposition(contentDisposition) {
 }
 
 function buildProgramasExportUrl() {
-  const { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
+  const { years, municipios, centros, niveles, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
   const params = new URLSearchParams();
   if (years.length) params.set('year', years.join(','));
   if (municipios.length) params.set('municipio', municipios.join(','));
+  if (centros.length) params.set('centro', centros.join(','));
+  if (niveles.length) params.set('nivel', niveles.join(','));
   if (estrategias.length) params.set('estrategia', estrategias.join(','));
   if (convenios.length) params.set('convenio', convenios.join(','));
   if (vigencias.length) params.set('vigencia', vigencias.join(','));
@@ -323,10 +333,12 @@ function buildProgramasExportUrl() {
 
 // URL para obtener TODOS los programas filtrados (sin paginación) para totales
 function buildProgramasAllUrl() {
-  const { years, municipios, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
+  const { years, municipios, centros, niveles, estrategias, convenios, vigencias, soloCertificados, numeroFicha } = getFilters();
   const params = new URLSearchParams();
   if (years.length) params.set('year', years.join(','));
   if (municipios.length) params.set('municipio', municipios.join(','));
+  if (centros.length) params.set('centro', centros.join(','));
+  if (niveles.length) params.set('nivel', niveles.join(','));
   if (estrategias.length) params.set('estrategia', estrategias.join(','));
   if (convenios.length) params.set('convenio', convenios.join(','));
   if (vigencias.length) params.set('vigencia', vigencias.join(','));
@@ -440,18 +452,23 @@ function updateHeaderInfo(fechaCorte, total) {
 function populateFilterOptions(items, meta) {
   const yearEl = document.getElementById('filterYear');
   const muniEl = document.getElementById('filterMunicipio');
+  const centroEl = document.getElementById('filterCentro');
+  const nivelEl = document.getElementById('filterNivel');
   const estEl = document.getElementById('filterEstrategia');
   const convEl = document.getElementById('filterConvenio');
   const vigEl = document.getElementById('filterVigencia');
-  if (!yearEl || !muniEl || !estEl || !convEl || !vigEl) return;
+  if (!yearEl || !muniEl || !centroEl || !nivelEl || !estEl || !convEl || !vigEl) return;
 
   const selectedYears = Array.from(yearEl.selectedOptions || []).map(o => o.value);
   const selectedMunis = Array.from(muniEl.selectedOptions || []).map(o => o.value);
+  const selectedCentros = Array.from(centroEl.selectedOptions || []).map(o => o.value);
 
   // Usar opciones globales calculadas en el backend para que los filtros
   // sean consistentes para toda la tabla, no solo para la pagina actual.
   const years = new Set(globalFilterOptions?.years || []);
   const municipios = new Set(globalFilterOptions?.municipios || []);
+  const centros = new Set(globalFilterOptions?.centros || []);
+  const niveles = new Set(globalFilterOptions?.niveles || []);
   const estrategias = new Set(globalFilterOptions?.estrategias || []);
   const convenios = new Set(globalFilterOptions?.convenios || []);
   const vigencias = new Set(globalFilterOptions?.vigencias || []);
@@ -474,6 +491,26 @@ function populateFilterOptions(items, meta) {
 
   Array.from(yearEl.options || []).forEach(o => { o.selected = selectedYears.includes(o.value); });
   Array.from(muniEl.options || []).forEach(o => { o.selected = selectedMunis.includes(o.value); });
+
+  centroEl.options.length = 1;
+  Array.from(centros).sort((a, b) => a.localeCompare(b)).forEach((v) => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.text = v;
+    centroEl.appendChild(o);
+  });
+  Array.from(centroEl.options || []).forEach(o => { o.selected = selectedCentros.includes(o.value); });
+
+  const selectedNiveles = Array.from(nivelEl.selectedOptions || []).map(o => o.value);
+
+  nivelEl.options.length = 1;
+  Array.from(niveles).sort((a, b) => a.localeCompare(b)).forEach((v) => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.text = v;
+    nivelEl.appendChild(o);
+  });
+  Array.from(nivelEl.options || []).forEach(o => { o.selected = selectedNiveles.includes(o.value); });
 
   const selectedEsts = Array.from(estEl.selectedOptions || []).map(o => o.value);
   const selectedConvs = Array.from(convEl.selectedOptions || []).map(o => o.value);
@@ -507,9 +544,79 @@ function populateFilterOptions(items, meta) {
   });
   Array.from(vigEl.options || []).forEach(o => { o.selected = selectedVigs.includes(o.value); });
 
-  ['filterYear','filterMunicipio','filterEstrategia','filterConvenio','filterVigencia'].forEach(id => {
+  const deleteVigenciaEl = document.getElementById('deleteVigenciaYear');
+  if (deleteVigenciaEl) {
+    const currentDeleteVig = (deleteVigenciaEl.value || '').trim();
+    deleteVigenciaEl.options.length = 1;
+    Array.from(vigencias).sort((a, b) => Number(b) - Number(a)).forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v;
+      o.text = v;
+      deleteVigenciaEl.appendChild(o);
+    });
+    if (currentDeleteVig) deleteVigenciaEl.value = currentDeleteVig;
+  }
+
+  ['filterYear','filterMunicipio','filterCentro','filterNivel','filterEstrategia','filterConvenio','filterVigencia'].forEach(id => {
     setupMultiSelect(id);
   });
+}
+
+async function deleteAllProgramas() {
+  const confirmacion = window.confirm('Vas a borrar TODOS los registros de programas. Esta accion no se puede deshacer.\n\n¿Deseas continuar?');
+  if (!confirmacion) return;
+
+  setStatus('Eliminando todos los registros de programas...');
+  try {
+    const resp = await fetch(`${API_BASE}/programas/delete-all`, { method: 'DELETE' });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      const msg = data && data.detail ? data.detail : (resp.status + ' ' + resp.statusText);
+      throw new Error(msg);
+    }
+
+    const deleted = data && typeof data.deleted_rows === 'number' ? data.deleted_rows : 0;
+    setStatus(`Se eliminaron ${deleted} registros de programas.`);
+    currentPage = 1;
+    await loadGlobalFilterOptions();
+    loadProgramas();
+  } catch (e) {
+    setStatus('Error eliminando programas: ' + e.message);
+    console.error(e);
+  }
+}
+
+async function deleteProgramasByVigencia() {
+  const vigenciaEl = document.getElementById('deleteVigenciaYear');
+  const vigencia = vigenciaEl && vigenciaEl.value ? vigenciaEl.value.trim() : '';
+  if (!vigencia) {
+    alert('Selecciona una vigencia para eliminar.');
+    return;
+  }
+
+  const confirmacion = window.confirm(`Vas a borrar todos los programas de la vigencia ${vigencia} (año de fecha_inicio).\n\n¿Deseas continuar?`);
+  if (!confirmacion) return;
+
+  setStatus(`Eliminando programas de vigencia ${vigencia}...`);
+  try {
+    const resp = await fetch(`${API_BASE}/programas/delete-by-vigencia?vigencia=${encodeURIComponent(vigencia)}`, {
+      method: 'DELETE',
+    });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      const msg = data && data.detail ? data.detail : (resp.status + ' ' + resp.statusText);
+      throw new Error(msg);
+    }
+
+    const deleted = data && typeof data.deleted_rows === 'number' ? data.deleted_rows : 0;
+    setStatus(`Se eliminaron ${deleted} registros de la vigencia ${vigencia}.`);
+    currentPage = 1;
+    await loadGlobalFilterOptions();
+    loadProgramas();
+  } catch (e) {
+    setStatus('Error eliminando por vigencia: ' + e.message);
+    console.error(e);
+  }
 }
 
 function updatePagination(total, page, perPage) {
@@ -555,7 +662,26 @@ function renderTable(rows) {
   });
 }
 
+function getManualFechaCorteProgramas() {
+  const input = document.getElementById('programasFechaCorte');
+  const value = input && input.value ? input.value.trim() : '';
+  if (!value) {
+    alert('Selecciona la fecha de corte (dia, mes y anio).');
+    return null;
+  }
+
+  const parsed = new Date(value + 'T00:00:00');
+  if (Number.isNaN(parsed.getTime())) {
+    alert('La fecha de corte seleccionada no es valida.');
+    return null;
+  }
+  return value;
+}
+
 async function uploadProgramasExcel() {
+  const fechaCorteManual = getManualFechaCorteProgramas();
+  if (!fechaCorteManual) return;
+
   const input = document.getElementById('programasFile');
   const files = input && input.files ? Array.from(input.files) : [];
   if (!files.length) {
@@ -569,6 +695,7 @@ async function uploadProgramasExcel() {
     const file = files[i];
     const fd = new FormData();
     fd.append('file', file);
+    fd.append('fecha_corte_manual', fechaCorteManual);
 
     const percent = Math.round((i / files.length) * 100);
     setUploadProgress(percent);
@@ -592,7 +719,7 @@ async function uploadProgramasExcel() {
   }
 
   setUploadProgress(100);
-  setStatus(`Subida completada. Filas insertadas en total: ${totalInserted}.`);
+  setStatus(`Subida completada. Fecha de corte aplicada: ${fechaCorteManual}. Filas insertadas en total: ${totalInserted}.`);
   loadProgramas();
 }
 
@@ -707,6 +834,9 @@ async function uploadCertificadosExcel() {
 }
 
 async function uploadProgramasYCertificados() {
+  const fechaCorteManual = getManualFechaCorteProgramas();
+  if (!fechaCorteManual) return;
+
   const progInput = document.getElementById('programasFileCombo');
   const certInput = document.getElementById('certificadosFileCombo');
   const progFiles = progInput && progInput.files ? Array.from(progInput.files) : [];
@@ -728,6 +858,7 @@ async function uploadProgramasYCertificados() {
     const file = progFiles[i];
     const fdProg = new FormData();
     fdProg.append('file', file);
+    fdProg.append('fecha_corte_manual', fechaCorteManual);
 
     const percentProg = Math.round((i / (progFiles.length + certFiles.length)) * 100);
     setUploadProgress(percentProg);
@@ -782,7 +913,7 @@ async function uploadProgramasYCertificados() {
 
   setUploadProgress(100);
   setStatus(
-    `Programas y certificados procesados. Programas insertados (suma de todos los archivos): ${totalInsertedProg}. ` +
+    `Programas y certificados procesados. Fecha de corte aplicada a programas: ${fechaCorteManual}. Programas insertados (suma de todos los archivos): ${totalInsertedProg}. ` +
     `Filas impactadas en certificados: ${totalUpdatedRows}. Fichas actualizadas: ${totalUpdatedFichas}. ` +
     `Sin coincidencia (suma de todos los archivos): ${totalUnmatched}.`
   );

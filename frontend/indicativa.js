@@ -211,7 +211,7 @@ function renderTable(rows){
   tbody.innerHTML = '';
   if(!rows.length){
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="7" class="text-center">No hay datos</td>';
+    tr.innerHTML = '<td colspan="8" class="text-center">No hay datos</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -227,9 +227,59 @@ function renderTable(rows){
       <td>${escapeHtml(row.denominacion_programa)}</td>
       <td>${escapeHtml(row.periodo_oferta)}</td>
       <td>${escapeHtml(row.tipo_oferta)}</td>
+      <td>
+        <button type="button" class="btn btn-outline-danger btn-sm btn-delete-indicativa" data-id="${escapeHtml(row.id)}">Eliminar</button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+async function deleteAllIndicativa(){
+  const confirmacion = window.confirm('Vas a borrar TODOS los registros de indicativa. Esta accion no se puede deshacer.\n\n¿Deseas continuar?');
+  if(!confirmacion) return;
+
+  setStatus('Eliminando todos los registros de indicativa...');
+  try{
+    const resp = await fetch(`${API_BASE}/indicativa/delete-all`, { method: 'DELETE' });
+    const data = await resp.json().catch(() => null);
+    if(!resp.ok){
+      const msg = data && data.detail ? data.detail : (resp.status + ' ' + resp.statusText);
+      throw new Error(msg);
+    }
+    const deleted = data && typeof data.deleted_rows === 'number' ? data.deleted_rows : 0;
+    setStatus(`Se eliminaron ${deleted} registros de indicativa.`);
+    currentPage = 1;
+    await loadIndicativaFilterOptions();
+    loadIndicativa();
+  }catch(e){
+    setStatus('Error eliminando todos los registros de indicativa: ' + e.message);
+    console.error(e);
+  }
+}
+
+async function deleteIndicativaById(id){
+  if(!id) return;
+
+  const confirmacion = window.confirm(`Vas a eliminar el registro ${id} de indicativa.\n\n¿Deseas continuar?`);
+  if(!confirmacion) return;
+
+  setStatus(`Eliminando registro ${id} de indicativa...`);
+  try{
+    const resp = await fetch(`${API_BASE}/indicativa/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await resp.json().catch(() => null);
+    if(!resp.ok){
+      const msg = data && data.detail ? data.detail : (resp.status + ' ' + resp.statusText);
+      throw new Error(msg);
+    }
+
+    setStatus(`Registro ${id} eliminado correctamente.`);
+    await loadIndicativaFilterOptions();
+    loadIndicativa();
+  }catch(e){
+    setStatus('Error eliminando registro de indicativa: ' + e.message);
+    console.error(e);
+  }
 }
 
 async function uploadIndicativaExcel(){
@@ -423,7 +473,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if(prevBtn) prevBtn.addEventListener('click', () => changePage(-1));
   if(nextBtn) nextBtn.addEventListener('click', () => changePage(1));
   const uploadBtn = document.getElementById('uploadIndicativaBtn');
+  const deleteAllBtn = document.getElementById('deleteAllIndicativaBtn');
   if(uploadBtn) uploadBtn.addEventListener('click', uploadIndicativaExcel);
+  if(deleteAllBtn) deleteAllBtn.addEventListener('click', deleteAllIndicativa);
   const applyBtn = document.getElementById('applyFiltersBtn');
   const clearBtn = document.getElementById('clearFiltersBtn');
   const exportBtn = document.getElementById('exportIndicativaBtn');
@@ -454,6 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   document.addEventListener('click', (ev)=>{
     const target = ev.target;
+    if(target && target.classList && target.classList.contains('btn-delete-indicativa')){
+      const id = target.getAttribute('data-id');
+      deleteIndicativaById(id);
+      return;
+    }
     if(!target.closest || !target.closest('.multi-select')){
       document.querySelectorAll('.multi-select-menu').forEach(m => { m.style.display = 'none'; });
     }

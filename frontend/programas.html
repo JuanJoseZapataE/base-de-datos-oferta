@@ -151,11 +151,11 @@
       <div class="row g-3 mb-3">
         <div class="col-md-6">
           <div class="card p-3 h-100">
-            <h5>Subir Excel de Programas</h5>
+            <h5>Subir Excel PE-04</h5>
             <div class="row g-2 align-items-end">
-              <div class="col-md-8">
+              <div class="col-md-5">
                 <label class="form-label d-flex justify-content-between align-items-center">
-                  <span>Archivo Excel</span>
+                  <span>Archivo Excel PE-04</span>
                   <small id="programasFileCount" class="text-muted ms-2"></small>
                 </label>
                 <div class="excel-picker">
@@ -163,7 +163,11 @@
                 </div>
               </div>
               <div class="col-md-4">
-                <button id="uploadProgramasBtn" class="btn btn-success w-100">Subir Excel</button>
+                <label class="form-label">Fecha de corte manual</label>
+                <input id="programasFechaCorte" type="date" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <button id="uploadProgramasBtn" class="btn btn-success w-100">Subir PE-04</button>
               </div>
             </div>
           </div>
@@ -171,11 +175,11 @@
 
         <div class="col-md-6">
           <div class="card p-3 h-100">
-            <h5>Subir Programas Hist&oacute;ricos</h5>
+            <h5>Subir PE-04 Hist&oacute;rico</h5>
             <div class="row g-2 align-items-end">
               <div class="col-md-6">
                 <label class="form-label d-flex justify-content-between align-items-center">
-                  <span>Archivos Excel hist&oacute;ricos de programas</span>
+                  <span>Archivos Excel PE-04 hist&oacute;rico</span>
                   <small id="programasHistoricosFileCount" class="text-muted ms-2"></small>
                 </label>
                 <div class="excel-picker">
@@ -187,7 +191,7 @@
                 <input id="historicoYear" type="number" class="form-control" min="1900" max="2100" placeholder="Ej: 2018">
               </div>
               <div class="col-md-3">
-                <button id="uploadProgramasHistoricosBtn" class="btn btn-secondary w-100">Subir hist&oacute;ricos</button>
+                <button id="uploadProgramasHistoricosBtn" class="btn btn-secondary w-100">Subir PE-04 hist&oacute;rico</button>
               </div>
             </div>
           </div>
@@ -254,21 +258,25 @@
               <option value="">(todos)</option>
             </select>
           </div>
-          <div class="col-md-5">
+          <div class="col-md-4">
             <label class="form-label">Municipio</label>
             <select id="filterMunicipio" class="form-select" multiple>
               <option value="">(todos)</option>
             </select>
           </div>
+          <div class="col-md-5">
+            <label class="form-label">Centro de formaci&oacute;n</label>
+            <select id="filterCentro" class="form-select" multiple>
+              <option value="">(todos)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row g-2 align-items-end mt-2">
           <div class="col-md-4">
-            <div class="row g-2">
-              <div class="col-12">
-                <label class="form-label">Estrategia del programa</label>
-                <select id="filterEstrategia" class="form-select" multiple>
-                  <option value="">(todas)</option>
-                </select>
-              </div>
-            </div>
+            <label class="form-label">Nivel de formaci&oacute;n</label>
+            <select id="filterNivel" class="form-select" multiple>
+              <option value="">(todos)</option>
+            </select>
           </div>
         </div>
         <div class="row g-2 align-items-end mt-2">
@@ -288,7 +296,13 @@
               <option value="">(todas)</option>
             </select>
           </div>
-          <div class="col-md-4 d-flex flex-column flex-md-row gap-2 justify-content-md-end mt-3 mt-md-0">
+          <div class="col-md-4">
+            <label class="form-label">Estrategia del programa</label>
+            <select id="filterEstrategia" class="form-select" multiple>
+              <option value="">(todas)</option>
+            </select>
+          </div>
+          <div class="col-md-12 d-flex flex-column flex-md-row gap-2 justify-content-md-end mt-3 mt-md-0">
             <div class="form-check me-md-3">
               <input class="form-check-input" type="checkbox" id="filterSoloCertificados">
               <label class="form-check-label" for="filterSoloCertificados">
@@ -329,7 +343,14 @@
         <div id="uploadProgressBar" class="progress-bar bg-success" role="progressbar" style="width:0%;" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
       </div>
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <div class="small text-muted">Max. 20 registros por página</div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <div class="small text-muted me-2">Max. 20 registros por p&aacute;gina</div>
+          <select id="deleteVigenciaYear" class="form-select form-select-sm" style="min-width: 170px;">
+            <option value="">Elegir vigencia</option>
+          </select>
+          <button id="deleteByVigenciaBtn" type="button" class="btn btn-outline-danger btn-sm">Borrar vigencia</button>
+          <button id="deleteAllProgramasBtn" type="button" class="btn btn-danger btn-sm">Borrar todos los programas</button>
+        </div>
         <div class="btn-group btn-group-sm" role="group" aria-label="Paginacion programas">
           <button id="prevPageBtn" type="button" class="btn btn-outline-secondary">Anterior</button>
           <span id="pageInfo" class="btn btn-light disabled" style="pointer-events:none; min-width:120px;">Página 1 de 1</span>
