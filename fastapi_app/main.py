@@ -269,7 +269,6 @@ INDICATIVA_COLUMNS = [
     'nivel_institucion',
 ]
 
-
 def ensure_programas_table():
     create_sql = """
     CREATE TABLE IF NOT EXISTS programas_formacion (
@@ -519,6 +518,51 @@ def get_column_by_keywords(df: pd.DataFrame, keyword_groups: List[List[str]]) ->
     return None
 
 
+def detect_header_row_by_aliases(df_raw: pd.DataFrame, alias_pool: set[str], max_scan_rows: int = 30) -> Optional[int]:
+    best_idx = None
+    best_score = 0
+    scan_limit = min(max_scan_rows, len(df_raw.index))
+
+    for idx in range(scan_limit):
+        row_values = [value for value in df_raw.iloc[idx].tolist() if pd.notna(value)]
+        normalized_row = set(normalize_col_name(str(value)) for value in row_values)
+        score = len(normalized_row.intersection(alias_pool))
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+
+    if best_idx is not None and best_score >= 3:
+        return int(best_idx)
+    return None
+
+
+def read_excel_with_custom_header_detection(content: bytes, alias_pool: set[str]) -> pd.DataFrame:
+    try:
+        df_default = read_excel_basic(content)
+    except HTTPException:
+        raise
+    except Exception:
+        df_default = pd.DataFrame()
+
+    if not df_default.empty:
+        normalized_default = set(normalize_cols(df_default.columns))
+        if len(normalized_default.intersection(alias_pool)) >= 3:
+            return df_default
+
+    try:
+        df_raw = read_excel_no_header(content)
+        header_row = detect_header_row_by_aliases(df_raw, alias_pool)
+        if header_row is not None:
+            return read_excel_with_header_row(content, header_row)
+    except Exception:
+        pass
+
+    if not df_default.empty:
+        return df_default
+
+    raise HTTPException(status_code=400, detail='No se pudo leer el Excel. Verifica que sea un archivo valido (.xls o .xlsx).')
+
+
 def clean_optional_text(v):
     if pd.isna(v):
         return None
@@ -747,6 +791,26 @@ def extract_fecha_corte_from_excel_content(content: bytes):
     return None
 
 
+def extract_fecha_corte_from_excel_b1(content: bytes):
+    """Obtiene la fecha de corte desde la celda B1 del Excel."""
+    try:
+        wb = load_workbook(io.BytesIO(content), data_only=True)
+    except Exception:
+        return None
+
+    try:
+        ws = wb.active
+    except Exception:
+        return None
+
+    try:
+        value = ws['B1'].value
+    except Exception:
+        return None
+
+    return _parse_excel_fecha_value(value)
+
+
 def _parse_excel_fecha_value(value) -> Optional[date]:
     """Intenta convertir un valor de celda de Excel a date, asumiendo formato dia/mes/año cuando es texto."""
     if value is None:
@@ -811,6 +875,175 @@ def _parse_excel_hora_value(value) -> Optional[time]:
         return time(hour=hh, minute=mm, second=ss)
     except Exception:
         return None
+
+
+CATALOGO_COLUMNS = [
+    'cod_ver',
+    'prf_codigo',
+    'prf_version',
+    'tipo_de_formacion',
+    'prf_denominacion',
+    'nivel_de_formacion',
+    'prf_duracion_maxima',
+    'prf_dur_etapa_lectiva',
+    'prf_dur_etapa_prod',
+    'prf_fch_registro',
+    'fecha_activo_en_ejecucion',
+    'prf_edad_min_requerida',
+    'prf_grado_min_requerido',
+    'prf_descripcion_requisito',
+    'prf_resolucion',
+    'prf_fecha_resolucion',
+    'prf_apoyo_fic',
+    'prf_creditos',
+    'prf_alineada',
+    'linea_tecnologica',
+    'red_tecnologica',
+    'red_de_conocimiento',
+    'modalidad',
+    'apuestas_prioritarias',
+    'fic',
+    'tipo_permiso',
+    'multiple_inscripcion',
+    'indice',
+    'ocupacion',
+    'fecha_corte',
+]
+
+CATALOGO_COLUMN_ALIASES = {
+    'cod_ver': ['cod_ver', 'codigo_version', 'codigo_de_version', 'cod_version', 'version_codigo'],
+    'prf_codigo': ['prf_codigo', 'codigo_programa', 'codigo_prf', 'codigo_del_programa', 'prfcode'],
+    'prf_version': ['prf_version', 'version', 'numero_version'],
+    'tipo_de_formacion': ['tipo_de_formacion', 'tipo_formacion'],
+    'prf_denominacion': ['prf_denominacion', 'denominacion_programa', 'nombre_programa', 'nombre_programa_formacion'],
+    'nivel_de_formacion': ['nivel_de_formacion', 'nivel_formacion'],
+    'prf_duracion_maxima': ['prf_duracion_maxima', 'duracion_maxima', 'prf_duracion_minima', 'duracion_minima'],
+    'prf_dur_etapa_lectiva': ['prf_dur_etapa_lectiva', 'duracion_etapa_lectiva'],
+    'prf_dur_etapa_prod': ['prf_dur_etapa_prod', 'duracion_etapa_productiva'],
+    'prf_fch_registro': ['prf_fch_registro', 'fecha_registro', 'fch_registro'],
+    'fecha_activo_en_ejecucion': ['fecha_activo_en_ejecucion', 'fecha_activa_en_ejecucion'],
+    'prf_edad_min_requerida': ['prf_edad_min_requerida', 'edad_minima_requerida'],
+    'prf_grado_min_requerido': ['prf_grado_min_requerido', 'grado_minimo_requerido'],
+    'prf_descripcion_requisito': ['prf_descripcion_requisito', 'descripcion_requisito'],
+    'prf_resolucion': ['prf_resolucion', 'resolucion'],
+    'prf_fecha_resolucion': ['prf_fecha_resolucion', 'fecha_resolucion'],
+    'prf_apoyo_fic': ['prf_apoyo_fic', 'apoyo_fic'],
+    'prf_creditos': ['prf_creditos', 'creditos'],
+    'prf_alineada': ['prf_alineada', 'alineada'],
+    'linea_tecnologica': ['linea_tecnologica'],
+    'red_tecnologica': ['red_tecnologica'],
+    'red_de_conocimiento': ['red_de_conocimiento'],
+    'modalidad': ['modalidad'],
+    'apuestas_prioritarias': ['apuestas_prioritarias'],
+    'fic': ['fic'],
+    'tipo_permiso': ['tipo_permiso'],
+    'multiple_inscripcion': ['multiple_inscripcion'],
+    'indice': ['indice'],
+    'ocupacion': ['ocupacion'],
+    'fecha_corte': ['fecha_corte'],
+}
+
+
+def _load_catalogo_dataframe(content: bytes, filename: str) -> pd.DataFrame:
+    alias_pool = set()
+    for aliases in CATALOGO_COLUMN_ALIASES.values():
+        for alias in aliases:
+            alias_pool.add(normalize_col_name(alias))
+
+    if filename.lower().endswith('.xml'):
+        df = read_spreadsheetml_xml(content)
+    else:
+        df = read_excel_with_custom_header_detection(content, alias_pool)
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene filas')
+
+    df = df.copy()
+    df.columns = normalize_cols(df.columns)
+
+    rename_map = {}
+    for target, aliases in CATALOGO_COLUMN_ALIASES.items():
+        for alias in aliases:
+            alias_norm = normalize_col_name(alias)
+            if alias_norm in df.columns and alias_norm != target:
+                rename_map[alias_norm] = target
+                break
+    if rename_map:
+        df = df.rename(columns=rename_map)
+
+    if 'cod_ver' not in df.columns:
+        codigo_col = get_first_existing_column(df, ['codigo_version', 'cod_version', 'version_codigo'])
+        if codigo_col:
+            df['cod_ver'] = df[codigo_col]
+
+    for col in CATALOGO_COLUMNS:
+        if col not in df.columns:
+            df[col] = None
+
+    df = df[CATALOGO_COLUMNS].copy()
+
+    int_cols = [
+        'prf_codigo', 'prf_version', 'prf_duracion_maxima', 'prf_dur_etapa_lectiva', 'prf_dur_etapa_prod',
+        'prf_edad_min_requerida', 'prf_creditos', 'indice'
+    ]
+    for col in int_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
+
+    date_cols = ['prf_fch_registro', 'fecha_activo_en_ejecucion', 'prf_fecha_resolucion', 'fecha_corte']
+    for col in date_cols:
+        df[col] = df[col].apply(_parse_excel_fecha_value)
+
+    text_cols = [c for c in CATALOGO_COLUMNS if c not in int_cols and c not in date_cols]
+    for col in text_cols:
+        df[col] = df[col].apply(clean_optional_text)
+
+    df['cod_ver'] = df['cod_ver'].apply(clean_optional_text)
+
+    # Convertir NaN a None para compatibilidad con MySQL/pymysql
+    df = df.where(pd.notna(df), None)
+
+    mask = df['cod_ver'].isna() | (df['cod_ver'].astype(str).str.strip() == '')
+    if mask.any():
+        derived = (
+            df.loc[mask, 'prf_codigo'].astype('Int64').astype(str).replace('<NA>', '')
+            + '_'
+            + df.loc[mask, 'prf_version'].astype('Int64').astype(str).replace('<NA>', '')
+        )
+        derived = derived.str.strip('_')
+        df.loc[mask, 'cod_ver'] = derived.where(derived != '_', None)
+
+    df = df[df['cod_ver'].notna() & (df['cod_ver'].astype(str).str.strip() != '')].copy()
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene una columna cod_ver valida')
+
+    df = df.drop_duplicates(subset=['cod_ver'], keep='last').copy()
+    return df
+
+
+def _upsert_catalogo_rows(df: pd.DataFrame) -> int:
+    rows = df.to_dict(orient='records')
+    if not rows:
+        return 0
+
+    # Convertir NaN/inf a None para compatibilidad con pymysql
+    import math
+    for row in rows:
+        for key in list(row.keys()):
+            val = row[key]
+            if isinstance(val, float):
+                if math.isnan(val) or math.isinf(val):
+                    row[key] = None
+
+    insert_columns = CATALOGO_COLUMNS
+    insert_sql = (
+        f"INSERT INTO catalogo ({', '.join(insert_columns)}) VALUES ({', '.join(f':{col}' for col in insert_columns)}) "
+        f"ON DUPLICATE KEY UPDATE {', '.join(f'{col} = VALUES({col})' for col in insert_columns if col != 'cod_ver')}"
+    )
+
+    with engine.begin() as conn:
+        result = conn.execute(text(insert_sql), rows)
+
+    return int(result.rowcount or len(rows))
 
 
 def extract_fecha_reporte_from_filename_fichas(filename: str) -> Optional[date]:
@@ -2841,6 +3074,160 @@ def delete_programas_by_vigencia(vigencia: int):
         raise HTTPException(status_code=500, detail=f'Error eliminando programas por vigencia: {e}')
 
     return JSONResponse({'vigencia': vig, 'deleted_rows': int(result.rowcount or 0)})
+
+
+@app.get('/catalogo')
+def get_catalogo(
+    page: int = 1,
+    per_page: int = 50,
+    search: Optional[str] = None,
+    year: Optional[str] = None,
+    nivel: Optional[str] = None,
+):
+    try:
+        page = int(page)
+    except Exception:
+        page = 1
+    try:
+        per_page = int(per_page)
+    except Exception:
+        per_page = 50
+    if page < 1:
+        page = 1
+    if per_page < 1 or per_page > 500:
+        per_page = 50
+
+    clauses = []
+    params: dict = {}
+
+    if year is not None:
+        years = [y.strip() for y in str(year).split(',') if y.strip()]
+        if years:
+            if len(years) == 1:
+                clauses.append('YEAR(fecha_corte) = :year_0')
+            else:
+                in_keys = []
+                for i, val in enumerate(years):
+                    key = f'year_{i}'
+                    in_keys.append(f':{key}')
+                    params[key] = int(val)
+                clauses.append('YEAR(fecha_corte) IN (' + ','.join(in_keys) + ')')
+            if 'year_0' not in params and years:
+                params['year_0'] = int(years[0])
+
+    if search:
+        s = str(search).strip().lower()
+        if s:
+            clauses.append('(LOWER(TRIM(cod_ver)) LIKE :search OR LOWER(TRIM(prf_denominacion)) LIKE :search)')
+            params['search'] = f'%{s}%'
+
+    if nivel is not None:
+        n = str(nivel).strip().lower()
+        if n:
+            clauses.append('LOWER(TRIM(nivel_de_formacion)) = :nivel')
+            params['nivel'] = n
+
+    where_sql = ''
+    if clauses:
+        where_sql = ' WHERE ' + ' AND '.join(clauses)
+
+    count_sql = f'SELECT COUNT(*) AS total FROM catalogo{where_sql}'
+    try:
+        with engine.connect() as conn:
+            total = conn.execute(text(count_sql), params).scalar() or 0
+            # obtener lista de niveles distintos para poblar el filtro en frontend
+            try:
+                distinct_sql = "SELECT DISTINCT nivel_de_formacion FROM catalogo WHERE nivel_de_formacion IS NOT NULL AND TRIM(nivel_de_formacion) <> '' ORDER BY nivel_de_formacion"
+                res = conn.execute(text(distinct_sql))
+                distinct_niveles = [r[0] for r in res.fetchall() if r[0] is not None]
+            except Exception:
+                distinct_niveles = []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error contando registros de catalogo: {e}')
+
+    offset = (page - 1) * per_page
+    sql = (
+        'SELECT * FROM catalogo'
+        f'{where_sql} '
+        'ORDER BY fecha_corte DESC, cod_ver ASC '
+        'LIMIT :limit OFFSET :offset'
+    )
+    params_data = dict(params)
+    params_data['limit'] = per_page
+    params_data['offset'] = offset
+
+    try:
+        df = pd.read_sql(text(sql), con=engine, params=params_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error consultando catalogo: {e}')
+
+    if not df.empty:
+        df = df.replace([float('inf'), float('-inf')], pd.NA)
+        df = df.where(pd.notna(df), None)
+        for col in ['prf_fch_registro', 'fecha_activo_en_ejecucion', 'prf_fecha_resolucion', 'fecha_corte']:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+                df[col] = df[col].apply(lambda v: v.isoformat() if hasattr(v, 'isoformat') else v)
+
+    items = df.to_dict(orient='records') if not df.empty else []
+    
+    # Limpiar NaN y inf de los items para JSON serialization
+    import math
+    for item in items:
+        for key in list(item.keys()):
+            val = item[key]
+            if isinstance(val, float):
+                if math.isnan(val) or math.isinf(val):
+                    item[key] = None
+    latest_fecha = None
+    if not df.empty and 'fecha_corte' in df.columns:
+        valid = pd.to_datetime(df['fecha_corte'], errors='coerce').dropna()
+        if not valid.empty:
+            latest_fecha = valid.max().date().isoformat()
+
+    return JSONResponse(
+        content=jsonable_encoder(
+            {
+                'items': items,
+                'total': int(total),
+                'fecha_corte': latest_fecha,
+                'page': page,
+                'per_page': per_page,
+                'distinct_niveles': distinct_niveles,
+            }
+        )
+    )
+
+
+@app.post('/catalogo/upload-excel')
+async def upload_catalogo_excel(file: UploadFile = File(...), fecha_corte_manual: Optional[date] = Form(None)):
+    if not file.filename.lower().endswith(('.xls', '.xlsx', '.xml')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls, .xlsx o .xml')
+
+    content = await file.read()
+
+    fecha_corte_file = fecha_corte_manual
+    if not fecha_corte_file:
+        fecha_corte_file = extract_fecha_corte_from_excel_b1(content)
+    if not fecha_corte_file:
+        fecha_corte_file = extract_fecha_corte_from_filename(file.filename or '')
+    if not fecha_corte_file:
+        raise HTTPException(
+            status_code=400,
+            detail='No se pudo obtener fecha_corte. Envia fecha_corte_manual o usa un archivo con fecha en B1.',
+        )
+
+    df = _load_catalogo_dataframe(content, file.filename or '')
+    df['fecha_corte'] = fecha_corte_file
+    rows_affected = _upsert_catalogo_rows(df)
+
+    return JSONResponse(
+        {
+            'inserted': int(len(df)),
+            'rows_affected': int(rows_affected),
+            'fecha_corte': str(fecha_corte_file),
+        }
+    )
 
 
 class UpdateRequest(BaseModel):

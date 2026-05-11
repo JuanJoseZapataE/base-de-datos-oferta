@@ -14,6 +14,15 @@
         border-radius: 12px;
         padding: 14px 16px;
       }
+      .brand-header {
+        background: linear-gradient(120deg, #074b26, #0b6a36);
+        border-radius: 12px;
+        color: #fff;
+        padding: 10px 14px;
+      }
+      .brand-logo { width:48px; height:48px; object-fit:contain; background:#fff; border-radius:8px; padding:4px; }
+      .brand-title { margin:0; font-weight:700; }
+      .brand-subtitle { margin:0; opacity:0.9; font-size:0.92rem; }
       .card { border: 1px solid rgba(0,0,0,0.12); }
       table thead th { background: #074b26; color: #fff; position: sticky; top: 0; }
       #status { font-weight: 600; color: #114f2c; }
@@ -130,15 +139,19 @@
   </head>
   <body>
     <div class="container my-4">
-      <div class="head d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <h1 class="h4 mb-0">Modulo Indicativa</h1>
-          <small>Tabla de oferta indicativa</small>
+      <div class="brand-header d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-3">
+          <img class="brand-logo" src="src/logo_sena.png" onerror="this.onerror=null;this.src='src/logo_sena.svg';" alt="Logo SENA">
+          <div>
+            <h1 class="brand-title h4 mb-0">Modulo Indicativa</h1>
+            <small class="brand-subtitle">Tabla de oferta indicativa</small>
+          </div>
         </div>
         <div class="d-flex gap-2 align-items-center">
           <a href="index.html" class="btn btn-outline-light btn-sm">Modulo Inscripciones</a>
           <a href="programas.html" class="btn btn-outline-light btn-sm">Ejecucion de la Formacion</a>
           <a href="indicativa.html" class="btn btn-light btn-sm">Modulo Indicativa</a>
+          <a href="seguimiento_metas.html" class="btn btn-outline-light btn-sm">Ejecucion de metas</a>
           <button id="themeToggle" class="btn btn-sm" type="button">🌙 Modo oscuro</button>
         </div>
       </div>

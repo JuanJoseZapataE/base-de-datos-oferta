@@ -11,11 +11,27 @@
       .card { border: 1px solid rgba(0,0,0,0.04); }
       h3 { color: var(--sena-green-dark); }
       .btn-primary { background-color: var(--sena-green); border-color: var(--sena-green-dark); }
+        .brand-header { background: linear-gradient(120deg, var(--sena-green-dark), var(--sena-green)); color:#fff; padding:10px 14px; border-radius:10px; }
+        .brand-logo { width:44px; height:44px; object-fit:contain; background:#fff; border-radius:8px; padding:4px; }
+        .brand-title { margin:0; font-weight:700; }
+        .brand-subtitle { margin:0; opacity:0.9; font-size:0.92rem; }
     </style>
 </head>
 <body class="p-4">
-  <div class="container">
-    <h3 id="title">Editar ficha</h3>
+    <div class="container">
+      <div class="brand-header d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-3">
+          <img class="brand-logo" src="src/logo_sena.png" onerror="this.onerror=null;this.src='src/logo_sena.svg';" alt="Logo SENA">
+          <div>
+            <h1 class="brand-title h5 mb-0">Editar ficha</h1>
+            <small class="brand-subtitle">Edición de registro individual</small>
+          </div>
+        </div>
+        <div>
+          <a href="index.html" class="btn btn-outline-light btn-sm">Inicio</a>
+          <a href="seguimiento_metas.html" class="btn btn-success btn-sm">Seguimiento</a>
+        </div>
+      </div>
     <div id="status" class="mb-2 text-muted"></div>
     <form id="editForm">
       <div class="row g-2" id="fields">
@@ -25,6 +41,7 @@
         <button id="saveBtn" class="btn btn-primary" type="submit">Guardar</button>
         <a href="index.html" class="btn btn-secondary">Volver</a>
         <a href="indicativa.html" class="btn btn-outline-success">Modulo Indicativa</a>
+        <a href="seguimiento_metas.html" class="btn btn-success">Ejecucion de metas</a>
       </div>
     </form>
   </div>
