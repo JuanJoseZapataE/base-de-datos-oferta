@@ -177,4 +177,41 @@ CREATE TABLE IF NOT EXISTS `registro_calificado_presencial` (
     INDEX `idx_rcp_fecha_registro` (`fecha_registro`)
 );
 
+CREATE TABLE IF NOT EXISTS `OFERTA` (
+    `codigo_centro` VARCHAR(10),
+    `centro_formacion` VARCHAR(150),
+    `tipo_oferta` VARCHAR(50),
+    `denominacion_formacion` VARCHAR(255),
+    `modalidad` VARCHAR(50),
+    `codigo_programa` VARCHAR(20) NOT NULL,    -- PK 1
+    `version_programa` INT NOT NULL,           -- PK 2
+    `resolucion_snies` TEXT,
+    `justificacion_oferta` TEXT,
+    `grupos` INT,
+    `cupos` INT,
+    `duracion_meses` INT,
+    `municipio` VARCHAR(100) NOT NULL,         -- PK 3
+    `sede` VARCHAR(255) NOT NULL,              -- PK 4
+    `codigo_indicativa` VARCHAR(20),
+    `horario_formacion` VARCHAR(150),
+    `estrategia` VARCHAR(150),
+    `fecha_inicio` DATE NOT NULL,              -- PK 5
+    `fecha_fin` DATE,
+    `fecha_registro` DATETIME DEFAULT CURRENT_TIMESTAMP,
 
+    -- Definición de la Llave Primaria Compuesta
+    PRIMARY KEY (
+        `codigo_programa`, 
+        `version_programa`, 
+        `municipio`, 
+        `sede`, 
+        `fecha_inicio`
+    ),
+
+    -- Índices de optimización
+    INDEX `idx_oferta_codigo_programa` (`codigo_programa`),
+    INDEX `idx_oferta_version` (`version_programa`),
+    INDEX `idx_oferta_municipio` (`municipio`),
+    INDEX `idx_oferta_fecha_inicio` (`fecha_inicio`),
+    INDEX `idx_oferta_fecha_registro` (`fecha_registro`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
