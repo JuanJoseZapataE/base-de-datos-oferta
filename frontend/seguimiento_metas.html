@@ -68,6 +68,33 @@
       .table-catalog tbody tr:hover {
         background-color: #f0f9f5;
       }
+      /* Modo oscuro para Registro Calificado */
+      body.dark-mode {
+        background: #0f1812;
+        color: #f2fff6;
+      }
+      body.dark-mode .brand-header {
+        background: linear-gradient(120deg, #0a3d1f, #0b6a36);
+      }
+      body.dark-mode .panel-card {
+        background: #18261d;
+        color: #f2fff6;
+      }
+      body.dark-mode .table-catalog {
+        background: #121c15;
+      }
+      body.dark-mode .table-catalog thead {
+        background: linear-gradient(120deg, #0a3d1f, #0b6a36) !important;
+      }
+      body.dark-mode .table-catalog thead th {
+        color: #e9ffee !important;
+      }
+      body.dark-mode .table-catalog tbody tr:hover {
+        background-color: #1f2a24;
+      }
+      body.dark-mode .table-catalog tbody td {
+        color: #f2fff6;
+      }
     </style>
   </head>
   <body>
@@ -85,111 +112,233 @@
           <a href="programas.html" class="btn btn-sm btn-outline-light">Ejecucion de la Formacion</a>
           <a href="indicativa.html" class="btn btn-sm btn-outline-light">Modulo Indicativa</a>
           <a href="seguimiento_metas.html" class="btn btn-sm btn-light">Seguimiento Metas</a>
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-lg-5">
-          <div class="card panel-card p-3 h-100">
-            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
-              <div>
-                <h5 class="mb-1">Subir catalogo</h5>
-                <p class="text-muted mb-0">Si no diligencias la fecha manual, se toma la de la celda B1 del Excel.</p>
-              </div>
-              <span class="badge text-bg-success">cod_ver como PK</span>
-            </div>
-
-            <label class="form-label">Archivo Excel</label>
-            <input id="catalogoFile" type="file" class="form-control mb-3" accept=".xls,.xlsx,.xml">
-
-            <label class="form-label">Fecha de corte manual</label>
-            <input id="catalogoFechaCorte" type="date" class="form-control mb-2">
-            <div class="form-text mb-3">Opcional. Si se deja vacío, el sistema intenta leer B1 del archivo.</div>
-
-            <div class="d-flex gap-2 flex-wrap">
-              <button id="uploadCatalogoBtn" class="btn btn-success">Subir Excel</button>
-              <button id="reloadCatalogoBtn" class="btn btn-outline-secondary">Actualizar tabla</button>
-            </div>
-
-            <div id="status" class="mt-3 small"></div>
-            <div id="uploadProgressContainer" class="progress mt-3" style="height:6px; display:none;">
-              <div id="uploadProgressBar" class="progress-bar bg-success" role="progressbar" style="width:0%;" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-7">
-          <div class="card panel-card p-3 h-100">
-            <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-              <div>
-                <h5 class="mb-1">Catalogo cargado</h5>
-                <p class="text-muted mb-0">Registros totales: <strong id="catalogoTotal">0</strong></p>
-              </div>
-            </div>
-
-            <div class="row g-2 align-items-end">
-              <div class="col-md-6">
-                <label class="form-label">Buscar</label>
-                <input id="catalogoSearch" type="text" class="form-control" placeholder="Búsqueda...">
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Nivel de formación</label>
-                <select id="filterNivelFormacion" class="form-select">
-                  <option value="">(Todos)</option>
-                </select>
-              </div>
-              <div class="col-md-3 d-grid">
-                <button id="searchCatalogoBtn" class="btn btn-outline-success btn-sm">Buscar</button>
-              </div>
-              <div class="col-md-3 d-grid">
-                <button id="toggleTableBtn" class="btn btn-success btn-sm" type="button">Mostrar tabla</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="row g-3">
-        <div class="col-12">
-          <div class="card panel-card p-3">
-            <div id="catalogoTableContainer" class="table-responsive" style="max-height: 62vh;">
-              <table class="table table-sm table-hover align-middle mb-0 table-catalog">
-                <thead class="sticky-top">
-                  <tr>
-                    <th>cod_ver</th>
-                    <th>Denominación</th>
-                    <th>Nivel de formación</th>
-                    <th>Duración máxima</th>
-                    <th>Etapa lectiva</th>
-                    <th>Etapa productiva</th>
-                  </tr>
-                </thead>
-                <tbody id="catalogoTableBody">
-                  <tr><td colspan="6" class="text-center text-muted py-4">Cargando...</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <nav id="catalogoPagination" aria-label="Paginación del catalogo" class="mt-3" style="display:none;">
-              <ul class="pagination justify-content-center mb-0">
-                <li class="page-item">
-                  <button id="catalogoPrevBtn" class="page-link" type="button">Anterior</button>
-                </li>
-                <li class="page-item disabled">
-                  <span class="page-link">
-                    Página <strong id="catalogoCurrentPage">1</strong> de <strong id="catalogoTotalPages">1</strong>
-                  </span>
-                </li>
-                <li class="page-item">
-                  <button id="catalogoNextBtn" class="page-link" type="button">Siguiente</button>
-                </li>
-              </ul>
-            </nav>
-          </div>
+          <button id="themeToggle" class="btn btn-sm" type="button">🌙 Modo oscuro</button>
         </div>
       </div>
     </div>
 
+    <div class="container my-5">
+
+      <button id="toggleSectionBtn" class="btn btn-success mb-3">
+        Ocultar sección catalogo
+      </button>
+
+      <div id="catalogoSection">  
+          <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">Subir catalogo</h5>
+                  <p class="text-muted mb-0">Si no diligencias la fecha manual, se toma la de la celda B1 del Excel.</p>
+                </div>
+                <span class="badge text-bg-success">cod_ver como PK</span>
+              </div>
+
+              <label class="form-label">Archivo Excel</label>
+              <input id="catalogoFile" type="file" class="form-control mb-3" accept=".xls,.xlsx,.xml">
+
+              <label class="form-label">Fecha de corte manual</label>
+              <input id="catalogoFechaCorte" type="date" class="form-control mb-2">
+              <div class="form-text mb-3">Opcional. Si se deja vacío, el sistema intenta leer B1 del archivo.</div>
+
+              <div class="d-flex gap-2 flex-wrap">
+                <button id="uploadCatalogoBtn" class="btn btn-success">Subir Excel</button>
+                <button id="reloadCatalogoBtn" class="btn btn-outline-secondary">Actualizar tabla</button>
+              </div>
+
+              <div id="status" class="mt-3 small"></div>
+              <div id="uploadProgressContainer" class="progress mt-3" style="height:6px; display:none;">
+                <div id="uploadProgressBar" class="progress-bar bg-success" role="progressbar" style="width:0%;" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">Catalogo cargado</h5>
+                  <p class="text-muted mb-0">Registros totales: <strong id="catalogoTotal">0</strong></p>
+                </div>
+              </div>
+
+              <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                  <label class="form-label">Buscar</label>
+                  <input id="catalogoSearch" type="text" class="form-control" placeholder="Búsqueda...">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Nivel de formación</label>
+                  <select id="filterNivelFormacion" class="form-select">
+                    <option value="">(Todos)</option>
+                  </select>
+                </div>
+                <div class="col-md-3 d-grid">
+                  <button id="searchCatalogoBtn" class="btn btn-outline-success btn-sm">Buscar</button>
+                </div>
+                <div class="col-md-3 d-grid">
+                  <button id="toggleTableBtn" class="btn btn-success btn-sm" type="button">Mostrar tabla</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="card panel-card p-3">
+              <div id="catalogoTableContainer" class="table-responsive" style="max-height: 62vh;">
+                <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                  <thead class="sticky-top">
+                    <tr>
+                      <th>cod_ver</th>
+                      <th>Denominación</th>
+                      <th>Nivel de formación</th>
+                      <th>Duración máxima</th>
+                      <th>Etapa lectiva</th>
+                      <th>Etapa productiva</th>
+                    </tr>
+                  </thead>
+                  <tbody id="catalogoTableBody">
+                    <tr><td colspan="6" class="text-center text-muted py-4">Cargando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <nav id="catalogoPagination" aria-label="Paginación del catalogo" class="mt-3" style="display:none;">
+                <ul class="pagination justify-content-center mb-0">
+                  <li class="page-item">
+                    <button id="catalogoPrevBtn" class="page-link" type="button">Anterior</button>
+                  </li>
+                  <li class="page-item disabled">
+                    <span class="page-link">
+                      Página <strong id="catalogoCurrentPage">1</strong> de <strong id="catalogoTotalPages">1</strong>
+                    </span>
+                  </li>
+                  <li class="page-item">
+                    <button id="catalogoNextBtn" class="page-link" type="button">Siguiente</button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SECCIÓN REGISTRO CALIFICADO ===== -->
+      <button id="toggleRegistroSection" class="btn btn-success mb-3 mt-4">
+        Ocultar Registro Calificado
+      </button>
+
+      <div id="registroSection">
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">Subir Registro Calificado Presencial</h5>
+                  <p class="text-muted mb-0">Carga el archivo Excel con los datos de Registro Calificado presencial</p>
+                </div>
+                <span class="badge text-bg-success">registro_calificado_presencial</span>
+              </div>
+
+              <label class="form-label">Archivo Excel</label>
+              <input id="registroFile" type="file" class="form-control mb-3" accept=".xls,.xlsx">
+
+              <div class="d-flex gap-2 flex-wrap">
+                <button id="uploadRegistroBtn" class="btn btn-success">Subir Excel</button>
+                <button id="reloadRegistroBtn" class="btn btn-outline-secondary">Actualizar tabla</button>
+              </div>
+
+              <div id="registroStatus" class="mt-3 small"></div>
+              <div id="registroProgressContainer" class="progress mt-3" style="height:6px; display:none;">
+                <div id="registroProgressBar" class="progress-bar bg-success" role="progressbar" style="width:0%;" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">Registros Calificados Cargados</h5>
+                  <p class="text-muted mb-0">Total de registros: <strong id="registroTotal">0</strong></p>
+                </div>
+              </div>
+
+              <div class="row g-2">
+                <div class="col-12 d-grid">
+                  <button id="toggleRegistroTableBtn" class="btn btn-success btn-sm" type="button">Mostrar tabla</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="card panel-card p-3">
+              <div id="registroTableContainer" class="table-responsive" style="max-height: 70vh; display:none;">
+                <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                  <thead class="sticky-top">
+                    <tr>
+                      <th style="min-width: 40px;">ID</th>
+                      <th style="min-width: 60px;">Proceso</th>
+                      <th style="min-width: 100px;">Tipo Trámite</th>
+                      <th style="min-width: 90px;">Fecha Radicado</th>
+                      <th style="min-width: 90px;">N° Resolución</th>
+                      <th style="min-width: 90px;">Fecha Resolución</th>
+                      <th style="min-width: 100px;">Resuelve</th>
+                      <th style="min-width: 100px;">Decreto Ampara</th>
+                      <th style="min-width: 60px;">SNIES</th>
+                      <th style="min-width: 80px;">Cobertura</th>
+                      <th style="min-width: 120px;">Resolución Ampara Programa</th>
+                      <th style="min-width: 100px;">Resolución Ampara</th>
+                      <th style="min-width: 100px;">Fecha Resolución Ampara</th>
+                      <th style="min-width: 90px;">Fecha Vencimiento</th>
+                      <th style="min-width: 100px;">Vigencia RC</th>
+                      <th style="min-width: 80px;">Cod Prog</th>
+                      <th style="min-width: 50px;">Ver</th>
+                      <th style="min-width: 150px;">Nombre Programa</th>
+                      <th style="min-width: 100px;">Nivel Form</th>
+                      <th style="min-width: 100px;">Red Conocimiento</th>
+                      <th style="min-width: 80px;">Modalidad</th>
+                      <th style="min-width: 120px;">Centro Formación</th>
+                      <th style="min-width: 120px;">Nombre Sede</th>
+                      <th style="min-width: 80px;">Tipo Sede</th>
+                      <th style="min-width: 100px;">Municipio</th>
+                      <th style="min-width: 120px;">Lugar Desarrollo</th>
+                      <th style="min-width: 150px;">Dirección</th>
+                      <th style="min-width: 70px;">Regional</th>
+                      <th style="min-width: 100px;">Nombre Regional</th>
+                      <th style="min-width: 180px;">Observaciones</th>
+                      <th style="min-width: 120px;">Clasificación</th>
+                      <th style="min-width: 80px;">Aprendices</th>
+                      <th style="min-width: 150px;">Lugar Desarrollo Resolución</th>
+                      <th style="min-width: 120px;">Fecha Registro</th>
+                    </tr>
+                  </thead>
+                  <tbody id="registroTableBody">
+                    <tr><td colspan="34" class="text-center text-muted py-4">Cargando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      </div>
+
+
+        
+
+    </div>
+      
+      
+      
+  
     <script src="seguimiento_metas.js"></script>
   </body>
 </html>

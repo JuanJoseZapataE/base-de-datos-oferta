@@ -207,7 +207,277 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ============================================================================
+# FUNCIONES PARA REGISTRO CALIFICADO (inline para evitar problemas de importación)
+# ============================================================================
 
+def _read_excel_registro_calificado(content):
+    """Lee un archivo Excel de registro calificado"""
+    try:
+        df = pd.read_excel(io.BytesIO(content), sheet_name=0, dtype=str)
+        return df
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Error al leer el archivo Excel: {str(e)}'
+        )
+
+
+def _normalize_col_name(col_name: str) -> str:
+    """Normaliza nombres de columna para búsqueda flexible (sin acentos)"""
+    import unicodedata
+    # Remover acentos
+    text = str(col_name).lower().strip()
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+    # Reemplazar espacios y guiones
+    text = text.replace(' ', '_').replace('-', '_')
+    return text
+
+
+async def _process_registro_calificado(df: pd.DataFrame):
+    """Procesa el DataFrame de registro calificado presencial e inserta en la tabla"""
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene filas')
+
+    # Normalizar nombres de columnas
+    df.columns = [_normalize_col_name(col) for col in df.columns]
+
+    # Mapear encabezados del Excel a nombres de columnas de la tabla
+    column_mapping = {
+        'proceso': 'proceso',
+        'tipo_de_tramite': 'tipo_tramite',
+        'tipo_tramite': 'tipo_tramite',  # Variante sin "de"
+        'fecha_radicado': 'fecha_radicado',
+        'numero_de_resolucion': 'numero_resolucion',
+        'numero_resolucion': 'numero_resolucion',  # Variante sin "de"
+        'fecha_de_resolucion': 'fecha_resolucion',
+        'fecha_resolucion': 'fecha_resolucion',  # Variante sin "de"
+        'resuelve': 'resuelve',
+        'decreto_que_ampara': 'decreto_ampara',
+        'decreto_ampara': 'decreto_ampara',
+        'snies': 'snies',
+        'cobertura': 'cobertura',
+        'resolucion_ampara_el_programa': 'resolucion_ampara_programa',
+        'resolucion_ampara_programa': 'resolucion_ampara_programa',
+        'resolucion_ampara': 'resolucion_ampara',
+        'resolucion_ampara_fecha': 'resolucion_ampara_fecha',
+        'fecha_de_vencimiento': 'fecha_vencimiento',
+        'fecha_vencimiento': 'fecha_vencimiento',  # Variante sin "de"
+        'vigencia_rc': 'vigencia_rc',
+        'cod_del_programa': 'cod_programa',
+        'cod_programa': 'cod_programa',
+        'version': 'version',
+        'nombre_del_pro': 'nombre_programa',
+        'programa': 'nombre_programa',
+        'nombre_programa': 'nombre_programa',
+        'nivel_de_formacion': 'nivel_formacion',
+        'nivel_formacion': 'nivel_formacion',
+        'red_de_conocimiento': 'red_conocimiento',
+        'red_conocimiento': 'red_conocimiento',
+        'modalidad': 'modalidad',
+        'centro_de_formacion': 'centro_formacion',
+        'centro_formacion': 'centro_formacion',
+        'nombre_sede': 'nombre_sede',
+        'tipo_sede': 'tipo_sede',
+        'municipio': 'municipio',
+        'lugar_de_desarrollo': 'lugar_desarrollo',
+        'lugar_desarrollo': 'lugar_desarrollo',
+        'direccion': 'direccion',
+        'regional': 'regional',
+        'nombre_regional': 'nombre_regional',
+        'observaciones': 'observaciones',
+        'clasificacion_para_tramite': 'clasificacion_tramite',
+        'clasificacion_tramite': 'clasificacion_tramite',  # Variante sin "para"
+        'aprendices_primer_cohorte': 'aprendices_primer_cohorte',
+        'lugar_de_desarrollo_escrito_en_la_resolucion': 'lugar_desarrollo_resolucion',
+    }
+
+    # Crear DataFrame con nombres normalizados
+    df_mapped = pd.DataFrame()
+    for col in df.columns:
+        if col in column_mapping:
+            df_mapped[column_mapping[col]] = df[col]
+
+    # Validar campos requeridos
+    required_fields = ['proceso', 'tipo_tramite', 'numero_resolucion', 'nombre_sede', 'tipo_sede', 'clasificacion_tramite']
+    missing_fields = [f for f in required_fields if f not in df_mapped.columns or df_mapped[f].isna().all()]
+    
+    if missing_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Faltan columnas requeridas: {", ".join(missing_fields)}'
+        )
+
+    # Limpiar datos: eliminar filas con campos requeridos vacíos
+    for field in required_fields:
+        if field in df_mapped.columns:
+            df_mapped = df_mapped[df_mapped[field].notna()]
+    
+    df_mapped = df_mapped[df_mapped['proceso'].astype(str).str.strip() != '']
+    
+    if df_mapped.empty:
+        raise HTTPException(status_code=400, detail='No hay registros válidos después de validar campos requeridos')
+
+    try:
+        with engine.connect() as conn:
+            inserted_count = 0
+            for idx, row in df_mapped.iterrows():
+                # Preparar valores para inserción
+                values = {}
+                for col in df_mapped.columns:
+                    val = row[col]
+                    
+                    # Convertir a None si es NaN
+                    if pd.isna(val):
+                        values[col] = None
+                    # Convertir fechas
+                    elif col in ['fecha_radicado', 'fecha_resolucion', 'resolucion_ampara_fecha', 'fecha_vencimiento']:
+                        try:
+                            parsed_date = pd.to_datetime(val)
+                            values[col] = str(parsed_date.date()) if parsed_date else None
+                        except:
+                            values[col] = None
+                    # Convertir enteros
+                    elif col in ['snies', 'cod_programa', 'version', 'regional', 'aprendices_primer_cohorte']:
+                        try:
+                            values[col] = int(float(str(val))) if val else None
+                        except:
+                            values[col] = None
+                    else:
+                        values[col] = str(val).strip() if val else None
+
+                # Construir SQL INSERT simples con todos los campos
+                cols = list(values.keys())
+                col_names = ', '.join([f'`{c}`' for c in cols])
+                placeholders = ', '.join([f':{c}' for c in cols])
+                
+                # Campos que se pueden actualizar (no son parte de la PK)
+                updateable_cols = [c for c in cols if c not in ['proceso', 'tipo_tramite', 'numero_resolucion', 'nombre_sede', 'tipo_sede', 'clasificacion_tramite']]
+                update_clause = ', '.join([f'`{c}`=:{c}' for c in updateable_cols]) if updateable_cols else '`id`=`id`'
+                
+                insert_sql = f"""
+                INSERT INTO registro_calificado_presencial ({col_names})
+                VALUES ({placeholders})
+                ON DUPLICATE KEY UPDATE {update_clause}
+                """
+                
+                try:
+                    conn.execute(text(insert_sql), values)
+                    inserted_count += 1
+                except Exception as row_error:
+                    print(f"Error insertando fila {idx}: {row_error}")
+                    print(f"Valores: {values}")
+            
+            conn.commit()
+
+        return {
+            'status': 'success',
+            'message': f'Se cargaron {inserted_count} registros correctamente en registro_calificado_presencial',
+            'rows_processed': inserted_count
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Error al guardar en base de datos: {str(e)}'
+        )
+
+
+async def _get_registro_calificado_data():
+    """Obtiene los datos de registro_calificado_presencial de la base de datos"""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT 
+                    id, proceso, tipo_tramite, fecha_radicado, numero_resolucion, 
+                    fecha_resolucion, resuelve, snies, cod_programa, version, 
+                    nombre_programa, nivel_formacion, modalidad, 
+                    nombre_sede, tipo_sede, municipio, centro_formacion,
+                    clasificacion_tramite, aprendices_primer_cohorte, 
+                    vigencia_rc, regional, nombre_regional, observaciones,
+                    lugar_desarrollo, direccion, fecha_registro
+                FROM registro_calificado_presencial
+                ORDER BY fecha_registro DESC
+                LIMIT 100
+            """))
+            rows = result.fetchall()
+            return [dict(row._mapping) for row in rows]
+    except Exception as e:
+        return []
+
+
+# ============================================================================
+# ENDPOINTS PARA REGISTRO CALIFICADO
+# ============================================================================
+
+@app.post('/registro-calificado/upload-excel')
+async def upload_registro_calificado(file: UploadFile = File(...)):
+    """Sube un archivo Excel de Registro Calificado."""
+    if not file.filename.lower().endswith(('.xls', '.xlsx')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+
+    content = await file.read()
+    
+    try:
+        df = _read_excel_registro_calificado(content)
+        result = await _process_registro_calificado(df)
+        return JSONResponse(result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al procesar archivo: {str(e)}')
+
+
+@app.get('/registro-calificado/data')
+async def get_registro_calificado_list():
+    """Obtiene los datos cargados de Registro Calificado."""
+    try:
+        with engine.connect() as conn:
+            # Primero verificar si la tabla existe
+            check_table_sql = """
+            SELECT COUNT(*) as count
+            FROM information_schema.TABLES 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'registro_calificado_presencial'
+            """
+            table_exists = conn.execute(text(check_table_sql)).fetchone()
+            
+            if not table_exists or table_exists[0] == 0:
+                return JSONResponse({'items': [], 'message': 'Tabla no existe aún'})
+            
+            # Obtener TODOS los datos de la tabla
+            result = conn.execute(text("""
+                SELECT 
+                    proceso, tipo_tramite, fecha_radicado, numero_resolucion, 
+                    fecha_resolucion, resuelve, decreto_ampara, snies, cobertura,
+                    resolucion_ampara_programa, resolucion_ampara, resolucion_ampara_fecha,
+                    fecha_vencimiento, vigencia_rc, cod_programa, version, 
+                    nombre_programa, nivel_formacion, red_conocimiento, modalidad, 
+                    centro_formacion, nombre_sede, tipo_sede, municipio, 
+                    lugar_desarrollo, direccion, regional, nombre_regional, 
+                    observaciones, clasificacion_tramite, aprendices_primer_cohorte,
+                    lugar_desarrollo_resolucion, fecha_registro
+                FROM registro_calificado_presencial
+                ORDER BY fecha_registro DESC
+                LIMIT 1000
+            """))
+            rows = result.fetchall()
+            data = []
+            for idx, row in enumerate(rows, 1):
+                row_dict = dict(row._mapping)
+                # Convertir TODAS las fechas/datetimes a string para JSON (evitar errores de serialización)
+                for key in list(row_dict.keys()):
+                    val = row_dict[key]
+                    if val is not None and hasattr(val, 'isoformat'):
+                        # Convertir cualquier date/datetime a ISO format string
+                        row_dict[key] = val.isoformat()
+                row_dict['id'] = idx  # Generar id secuencial
+                data.append(row_dict)
+            return JSONResponse({'items': data, 'total': len(data)})
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        return JSONResponse({'items': [], 'error': str(e), 'detail': error_detail}, status_code=500)
 
 
 @app.get('/')
