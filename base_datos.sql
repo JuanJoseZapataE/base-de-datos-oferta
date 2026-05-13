@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS `registro_calificado_presencial` (
 );
 
 CREATE TABLE IF NOT EXISTS `OFERTA` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT,       -- Nueva Llave Primaria
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
     `codigo_centro` VARCHAR(10),
     `centro_formacion` VARCHAR(150),
     `tipo_oferta` VARCHAR(50),
@@ -200,14 +200,14 @@ CREATE TABLE IF NOT EXISTS `OFERTA` (
     `fecha_fin` DATE,
     `fecha_registro` DATETIME DEFAULT CURRENT_TIMESTAMP,
 
-    -- Definición de la Llave Primaria única
+    -- Campo de verificación simple
+    `verificado` ENUM('SÍ', 'NO') DEFAULT NULL, 
+
     PRIMARY KEY (`id`),
 
-    -- Índices para mantener la velocidad de búsqueda en los campos importantes
+    -- Índices para optimizar consultas
     INDEX `idx_oferta_codigo_programa` (`codigo_programa`),
-    INDEX `idx_oferta_version` (`version_programa`),
     INDEX `idx_oferta_municipio` (`municipio`),
-    INDEX `idx_oferta_sede` (`sede`),
-    INDEX `idx_oferta_fecha_inicio` (`fecha_inicio`),
-    INDEX `idx_oferta_fecha_registro` (`fecha_registro`)
+    INDEX `idx_oferta_verificado` (`verificado`),
+    INDEX `idx_oferta_fecha_inicio` (`fecha_inicio`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
