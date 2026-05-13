@@ -178,40 +178,36 @@ CREATE TABLE IF NOT EXISTS `registro_calificado_presencial` (
 );
 
 CREATE TABLE IF NOT EXISTS `OFERTA` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,       -- Nueva Llave Primaria
     `codigo_centro` VARCHAR(10),
     `centro_formacion` VARCHAR(150),
     `tipo_oferta` VARCHAR(50),
     `denominacion_formacion` VARCHAR(255),
     `modalidad` VARCHAR(50),
-    `codigo_programa` VARCHAR(20) NOT NULL,    -- PK 1
-    `version_programa` INT NOT NULL,           -- PK 2
+    `codigo_programa` VARCHAR(20),
+    `version_programa` INT,
     `resolucion_snies` TEXT,
     `justificacion_oferta` TEXT,
     `grupos` INT,
     `cupos` INT,
     `duracion_meses` INT,
-    `municipio` VARCHAR(100) NOT NULL,         -- PK 3
-    `sede` VARCHAR(255) NOT NULL,              -- PK 4
+    `municipio` VARCHAR(100),
+    `sede` VARCHAR(255),
     `codigo_indicativa` VARCHAR(20),
     `horario_formacion` VARCHAR(150),
     `estrategia` VARCHAR(150),
-    `fecha_inicio` DATE NOT NULL,              -- PK 5
+    `fecha_inicio` DATE,
     `fecha_fin` DATE,
     `fecha_registro` DATETIME DEFAULT CURRENT_TIMESTAMP,
 
-    -- Definición de la Llave Primaria Compuesta
-    PRIMARY KEY (
-        `codigo_programa`, 
-        `version_programa`, 
-        `municipio`, 
-        `sede`, 
-        `fecha_inicio`
-    ),
+    -- Definición de la Llave Primaria única
+    PRIMARY KEY (`id`),
 
-    -- Índices de optimización
+    -- Índices para mantener la velocidad de búsqueda en los campos importantes
     INDEX `idx_oferta_codigo_programa` (`codigo_programa`),
     INDEX `idx_oferta_version` (`version_programa`),
     INDEX `idx_oferta_municipio` (`municipio`),
+    INDEX `idx_oferta_sede` (`sede`),
     INDEX `idx_oferta_fecha_inicio` (`fecha_inicio`),
     INDEX `idx_oferta_fecha_registro` (`fecha_registro`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
