@@ -18,6 +18,12 @@ function showStatus(message, type = 'secondary') {
   el.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${escapeHtml(message)}</div>`;
 }
 
+function showOfertaStatus(message, type = 'secondary') {
+  const el = document.getElementById('ofertaStatus');
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${escapeHtml(message)}</div>`;
+}
+
 function setProgress(percent) {
   const container = document.getElementById('uploadProgressContainer');
   const bar = document.getElementById('uploadProgressBar');
@@ -466,5 +472,159 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Cargar datos de Registro Calificado automáticamente al cargar la página
   loadRegistroData();
+
+  // ===== MÓDULO SEGUIMIENTO METAS: OFERTA =====
+  function renderOfertaTable(rows) {
+    const tbody = document.getElementById('ofertaTableBody');
+    if (!tbody) return;
+
+    if (!rows || !rows.length) {
+      tbody.innerHTML = '<tr><td colspan="20" class="text-center text-muted py-4">Sin registros</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map((row) => `
+      <tr>
+        <td><small>${escapeHtml(row.id)}</small></td>
+        <td><small>${escapeHtml(row.codigo_centro || '')}</small></td>
+        <td><small>${escapeHtml(row.tipo_oferta || '')}</small></td>
+        <td><small>${escapeHtml(row.denominacion_formacion || '')}</small></td>
+        <td><small>${escapeHtml(row.modalidad || '')}</small></td>
+        <td><small>${escapeHtml(row.codigo_programa || '')}</small></td>
+        <td><small>${escapeHtml(row.version_programa || '')}</small></td>
+        <td><small>${escapeHtml(row.grupos || '')}</small></td>
+        <td><small>${escapeHtml(row.cupos || '')}</small></td>
+        <td><small>${escapeHtml(row.duracion_meses || '')}</small></td>
+        <td><small>${escapeHtml(row.municipio || '')}</small></td>
+        <td><small>${escapeHtml(row.sede || '')}</small></td>
+        <td class="codigo-indicativa-col"><small>${escapeHtml(row.codigo_indicativa || '')}</small></td>
+        <td><small>${escapeHtml(row.horario_formacion || '')}</small></td>
+        <td><small>${escapeHtml(row.estrategia || '')}</small></td>
+        <td><small>${escapeHtml(row.fecha_inicio || '')}</small></td>
+        <td><small>${escapeHtml(row.fecha_fin || '')}</small></td>
+        <td><small>${escapeHtml(row.oferta || '')}</small></td>
+        <td><small>${escapeHtml(row.verificado || '')}</small></td>
+        <td><button class="btn btn-sm btn-outline-primary editVerBtn" data-id="${escapeHtml(row.id)}">Editar</button></td>
+      </tr>
+    `).join('');
+
+    // Añadir listeners a botones de editar
+    Array.from(document.getElementsByClassName('editVerBtn')).forEach(btn => {
+      btn.removeEventListener('click', handleEditVerClick);
+      btn.addEventListener('click', handleEditVerClick);
+    });
+  }
+
+  function handleEditVerClick(e) {
+    const id = e.currentTarget.getAttribute('data-id');
+    if (!id) return;
+    const current = e.currentTarget.closest('tr')?.querySelectorAll('td')[18]?.textContent || '';
+    const newVal = prompt('Establece verificado: (VERIFICADO / NO VERIFICADO / VERIFICACION MANUAL / REGISTRO VENCIDO). Dejar vacío para NULL', current.trim() || '');
+    if (newVal === null) return; // cancel
+    const upper = newVal.trim().toUpperCase();
+    const normalized = upper === '' ? null : (upper === 'VERIFICADO' ? 'VERIFICADO' : upper === 'VERIFICACION MANUAL' ? 'VERIFICACION MANUAL' : upper === 'REGISTRO VENCIDO' ? 'REGISTRO VENCIDO' : 'NO VERIFICADO');
+    updateVerificado(id, normalized);
+  }
+
+  async function updateVerificado(id, verificado) {
+    try {
+      showOfertaStatus('Actualizando verificado...', 'info');
+      const resp = await fetch(`${API_BASE}/seguimiento-metas/update-verificado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: Number(id), verificado: verificado }),
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error((data && data.detail) || `${resp.status} ${resp.statusText}`);
+      showOfertaStatus('Verificado actualizado', 'success');
+      await loadOfertaData();
+    } catch (err) {
+      console.error(err);
+      showOfertaStatus(`Error actualizando verificado: ${err.message}`, 'danger');
+    }
+  }
+
+  async function loadOfertaData() {
+    try {
+      showOfertaStatus('Cargando OFERTA...', 'info');
+      const filterVerificado = (document.getElementById('filterOfertaVerificado')?.value || '').trim();
+      const params = new URLSearchParams();
+      if (filterVerificado) params.set('verificado', filterVerificado);
+      const url = filterVerificado ? `${API_BASE}/seguimiento-metas/data?${params.toString()}` : `${API_BASE}/seguimiento-metas/data`;
+      const resp = await fetch(url);
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error((data && data.detail) || `${resp.status} ${resp.statusText}`);
+      const items = Array.isArray(data?.items) ? data.items : [];
+      renderOfertaTable(items);
+      const totalEl = document.getElementById('ofertaTotal'); if (totalEl) totalEl.textContent = String(data?.total || items.length || 0);
+      showOfertaStatus('OFERTA cargada', 'success');
+    } catch (err) {
+      console.error(err);
+      showOfertaStatus(`Error al cargar OFERTA: ${err.message}`, 'danger');
+      renderOfertaTable([]);
+    }
+  }
+
+  async function uploadOfertaExcel() {
+    const input = document.getElementById('ofertaFile');
+    const files = input && input.files ? Array.from(input.files) : [];
+    if (!files.length) { alert('Selecciona un archivo Excel primero.'); return; }
+    const fd = new FormData(); fd.append('file', files[0]);
+    try {
+      setProgress(10);
+      showOfertaStatus('Subiendo Excel de OFERTA...', 'info');
+      const resp = await fetch(`${API_BASE}/seguimiento-metas/upload-oferta`, { method: 'POST', body: fd });
+      setProgress(75);
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error((data && data.detail) || `${resp.status} ${resp.statusText}`);
+      setProgress(100);
+      showOfertaStatus(`Subida completada. Filas procesadas: ${data.rows_processed || 0}.`, 'success');
+      input.value = '';
+      await loadOfertaData();
+    } catch (err) {
+      console.error(err);
+      showOfertaStatus(`Error al subir OFERTA: ${err.message}`, 'danger');
+    } finally {
+      setTimeout(hideProgress, 600);
+    }
+  }
+
+  // Agregar event listeners de OFERTA
+  document.getElementById('uploadOfertaBtn')?.addEventListener('click', uploadOfertaExcel);
+  document.getElementById('reloadOfertaBtn')?.addEventListener('click', loadOfertaData);
+  document.getElementById('filterOfertaVerificado')?.addEventListener('change', loadOfertaData);
+
+  const toggleOfertaTableBtn = document.getElementById('toggleOfertaTableBtn');
+  const ofertaTableContainer = document.getElementById('ofertaTableContainer');
+  if (toggleOfertaTableBtn) {
+    toggleOfertaTableBtn.addEventListener('click', () => {
+      if (!ofertaTableContainer) return;
+      if (ofertaTableContainer.style.display === 'none') {
+        ofertaTableContainer.style.display = 'block';
+        toggleOfertaTableBtn.textContent = 'Ocultar tabla OFERTA';
+      } else {
+        ofertaTableContainer.style.display = 'none';
+        toggleOfertaTableBtn.textContent = 'Mostrar tabla OFERTA';
+      }
+    });
+  }
+
+  const toggleOfertaSection = document.getElementById('toggleOfertaSection');
+  const ofertaSection = document.getElementById('ofertaSection');
+  if (toggleOfertaSection) {
+    toggleOfertaSection.addEventListener('click', () => {
+      if (!ofertaSection) return;
+      if (ofertaSection.style.display === 'none') {
+        ofertaSection.style.display = 'block';
+        toggleOfertaSection.textContent = 'Ocultar OFERTA';
+      } else {
+        ofertaSection.style.display = 'none';
+        toggleOfertaSection.textContent = 'Mostrar OFERTA';
+      }
+    });
+  }
+
+  // Cargar OFERTA inicialmente
+  loadOfertaData();
 });
 

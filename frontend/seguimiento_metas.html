@@ -68,6 +68,23 @@
       .table-catalog tbody tr:hover {
         background-color: #f0f9f5;
       }
+      .codigo-indicativa-col {
+        min-width: 180px;
+        white-space: nowrap;
+      }
+      .module-toggles {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+      .module-toggle {
+        display: inline-block;
+      }
+      #toggleSectionBtn { margin-left: 0; }
+      #toggleRegistroSection { margin-left: 26px; }
+      #toggleOfertaSection { margin-left: 52px; }
       /* Modo oscuro para Registro Calificado */
       body.dark-mode {
         background: #0f1812;
@@ -119,9 +136,11 @@
 
     <div class="container my-5">
 
-      <button id="toggleSectionBtn" class="btn btn-success mb-3">
-        Ocultar sección catalogo
-      </button>
+      <div class="module-toggles">
+        <button id="toggleSectionBtn" class="btn btn-success module-toggle" type="button">Ocultar sección catalogo</button>
+        <button id="toggleRegistroSection" class="btn btn-success module-toggle" type="button">Ocultar Registro Calificado</button>
+        <button id="toggleOfertaSection" class="btn btn-success module-toggle" type="button">Ocultar OFERTA</button>
+      </div>
 
       <div id="catalogoSection">  
           <div class="row g-3 mb-3">
@@ -227,9 +246,6 @@
       </div>
 
       <!-- ===== SECCIÓN REGISTRO CALIFICADO ===== -->
-      <button id="toggleRegistroSection" class="btn btn-success mb-3 mt-4">
-        Ocultar Registro Calificado
-      </button>
 
       <div id="registroSection">
         <div class="row g-3 mb-3">
@@ -329,16 +345,102 @@
         </div>
       </div>
 
+      <!-- ===== SECCIÓN OFERTA (Seguimiento Metas) ===== -->
+
+      <div id="ofertaSection">
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">Subir OFERTA (Excel)</h5>
+                  <p class="text-muted mb-0">Carga el Excel que actualizará la tabla OFERTA.</p>
+                </div>
+                <span class="badge text-bg-success">OFERTA</span>
+              </div>
+
+              <label class="form-label">Archivo Excel</label>
+              <input id="ofertaFile" type="file" class="form-control mb-3" accept=".xls,.xlsx">
+
+              <div class="d-flex gap-2 flex-wrap">
+                <button id="uploadOfertaBtn" class="btn btn-success">Subir Excel</button>
+                <button id="reloadOfertaBtn" class="btn btn-outline-secondary">Actualizar tabla</button>
+              </div>
+
+              <div id="ofertaStatus" class="mt-3 small"></div>
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">OFERTA cargada</h5>
+                  <p class="text-muted mb-0">Total de registros: <strong id="ofertaTotal">0</strong></p>
+                </div>
+              </div>
+
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label mb-1 small">Filtrar por verificación</label>
+                  <select id="filterOfertaVerificado" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="VERIFICADO">Verificados</option>
+                    <option value="NO VERIFICADO">No verificados</option>
+                    <option value="VERIFICACION MANUAL">Verificación manual</option>
+                    <option value="REGISTRO VENCIDO">Registro vencido</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label mb-1 small">&nbsp;</label>
+                  <button id="toggleOfertaTableBtn" class="btn btn-success btn-sm w-100" type="button">Mostrar tabla OFERTA</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="card panel-card p-3">
+              <div id="ofertaTableContainer" class="table-responsive" style="max-height: 70vh; display:none;">
+                <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                  <thead class="sticky-top">
+                    <tr>
+                       <th style="min-width: 50px;">ID</th>
+                       <th style="min-width: 80px;">Centro</th>
+                       <th style="min-width: 100px;">Tipo Oferta</th>
+                       <th style="min-width: 120px;">Denominación</th>
+                       <th style="min-width: 70px;">Modalidad</th>
+                       <th style="min-width: 70px;">Cod. Prog</th>
+                       <th style="min-width: 50px;">Ver</th>
+                       <th style="min-width: 60px;">Grupos</th>
+                       <th style="min-width: 50px;">Cupos</th>
+                       <th style="min-width: 80px;">Duración</th>
+                       <th style="min-width: 80px;">Municipio</th>
+                       <th style="min-width: 80px;">Sede</th>
+                      <th class="codigo-indicativa-col">Cod. Indic.</th>
+                       <th style="min-width: 100px;">Horario</th>
+                       <th style="min-width: 100px;">Estrategia</th>
+                       <th style="min-width: 80px;">F. Inicio</th>
+                       <th style="min-width: 80px;">F. Fin</th>
+                       <th style="min-width: 50px;">Oferta</th>
+                       <th style="min-width: 100px;">Verificado</th>
+                       <th style="min-width: 120px;">Acciones</th>
+                     </tr>
+                   </thead>
+                   <tbody id="ofertaTableBody">
+                     <tr><td colspan="20" class="text-center text-muted py-4">Cargando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-
-        
-
     </div>
-      
-      
-      
-  
+
     <script src="seguimiento_metas.js"></script>
   </body>
 </html>

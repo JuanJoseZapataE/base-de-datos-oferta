@@ -473,11 +473,525 @@ async def get_registro_calificado_list():
                         row_dict[key] = val.isoformat()
                 row_dict['id'] = idx  # Generar id secuencial
                 data.append(row_dict)
-            return JSONResponse({'items': data, 'total': len(data)})
+            return JSONResponse(content=jsonable_encoder({'items': data, 'total': len(data)}))
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
         return JSONResponse({'items': [], 'error': str(e), 'detail': error_detail}, status_code=500)
+
+
+# ============================================================================
+# ENDPOINTS Y FUNCIONES PARA SEGUIMIENTO DE METAS / OFERTA
+# ============================================================================
+
+
+def _read_excel_oferta(content: bytes) -> pd.DataFrame:
+    try:
+        # Intento estándar con detección automática
+        df = read_excel_with_header_detection(content)
+
+        # Normalizar nombres de columna y comprobar si se detectó la columna de 'oferta'
+        normalized = [normalize_col_name(c) for c in df.columns]
+        if any('oferta' in c for c in normalized) or 'no_de_oferta' in normalized or 'no_de_oferta' in '_'.join(normalized):
+            return df
+
+        # Si no encontramos la columna, intentar leer usando la segunda fila (header=1)
+        try:
+            df2 = pd.read_excel(io.BytesIO(content), header=1, engine='openpyxl')
+            normalized2 = [normalize_col_name(c) for c in df2.columns]
+            if any('oferta' in c for c in normalized2) or 'no_de_oferta' in normalized2:
+                print(f"DEBUG: read_excel_with header=1 detected columns: {normalized2}")
+                return df2
+        except Exception:
+            pass
+
+        # Como último recurso devolver el df original (se manejará error más arriba)
+        print(f"DEBUG: columnas detectadas (fallback): {normalized}")
+        return df
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error al leer Excel de oferta: {e}')
+
+
+def _normalize_verificado_to_front(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    s = str(value).strip().upper()
+    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
+    if s in {'SI', 'VERIFICADO'}:
+        return 'VERIFICADO'
+    if s in {'NO', 'NO VERIFICADO'}:
+        return 'NO VERIFICADO'
+    return str(value)
+
+
+def _map_verificado_to_db(conn, value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    norm = _normalize_verificado_to_front(value)
+    try:
+        col = conn.execute(
+            text(
+                """
+                SELECT COLUMN_TYPE
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'OFERTA_seguimiento_metas'
+                  AND COLUMN_NAME = 'verificado'
+                """
+            )
+        ).fetchone()
+        col_type = str(col[0]).upper() if col and col[0] is not None else ''
+    except Exception:
+        col_type = ''
+
+    if 'VERIFICADO' in col_type:
+        return norm
+    if 'SI' in unicodedata.normalize('NFKD', col_type).encode('ascii', 'ignore').decode('ascii'):
+        return 'SÍ' if norm == 'VERIFICADO' else 'NO'
+    return norm
+
+
+def _build_cod_ver(codigo_programa: Optional[str], version_programa: Optional[object]) -> Optional[str]:
+    codigo = clean_optional_text(codigo_programa)
+    if codigo is None:
+        return None
+
+    version_value = version_programa
+    try:
+        if pd.isna(version_value):
+            return None
+    except Exception:
+        pass
+
+    if version_value is None:
+        return None
+
+    if isinstance(version_value, float):
+        if version_value.is_integer():
+            version_text = str(int(version_value))
+        else:
+            version_text = str(version_value).strip()
+    else:
+        version_text = str(version_value).strip()
+
+    if version_text in {'', 'nan', 'nat', 'none', '<na>'}:
+        return None
+
+    return f'{codigo}-{version_text}'
+
+
+def _check_registro_calificado_vigencia(conn, codigo_programa_str: Optional[str]) -> Optional[str]:
+    """Verifica si codigo_programa existe en registro_calificado y si su fecha de vencimiento es vigente."""
+    if codigo_programa_str is None or codigo_programa_str.strip() == '':
+        return None
+
+    try:
+        codigo_prog_int = int(str(codigo_programa_str).strip())
+    except (ValueError, TypeError):
+        return None
+
+    try:
+        result = conn.execute(
+            text(
+                """
+                SELECT fecha_vencimiento
+                FROM registro_calificado_presencial
+                WHERE cod_programa = :cod_programa
+                LIMIT 1
+                """
+            ),
+            {'cod_programa': codigo_prog_int}
+        ).fetchone()
+
+        if result is None:
+            return None
+
+        fecha_vencimiento = result[0]
+        if fecha_vencimiento is None:
+            return None
+
+        from datetime import date
+        today = date.today()
+        if fecha_vencimiento > today:
+            return 'VERIFICADO'
+        else:
+            return 'REGISTRO VENCIDO'
+
+    except Exception:
+        return None
+
+
+async def _process_oferta(df: pd.DataFrame):
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene filas')
+
+    try:
+        df = df.copy()
+
+        # Si los encabezados están en una fila superior (por ejemplo fila 2), detectarlos.
+        # Buscar en las primeras 3 filas si contienen tokens esperados como 'no de oferta'
+        try:
+            header_row_index = None
+            scan_rows = min(3, len(df.index))
+            for i in range(scan_rows):
+                row_vals = [str(x).strip() if pd.notna(x) else '' for x in df.iloc[i].tolist()]
+                normalized_row = [normalize_col_name(v) for v in row_vals]
+                joined = ' '.join(normalized_row)
+                if 'no_de_oferta' in joined or ('no' in joined and 'oferta' in joined):
+                    header_row_index = i
+                    break
+            if header_row_index is not None:
+                # usar esa fila como encabezado
+                df.columns = df.iloc[header_row_index].tolist()
+                df = df.iloc[header_row_index+1:].reset_index(drop=True)
+                print(f"DEBUG: Encabezado detectado en fila {header_row_index+1}: {list(df.columns)}")
+        except Exception:
+            pass
+
+        # Normalizar nombres de columna para el mapeo
+        df.columns = [normalize_col_name(c) for c in df.columns]
+
+        # Mapear por encabezados reales detectados en la fila 2, usando los nombres
+        # exactos que aparecen en el Excel y dejando fallback por alias normalizados.
+        aliases = {
+            'codigo_centro': ['codigo_centro', 'cod_centro', 'codigo_de_centro'],
+            'centro_formacion': ['centro_de_formacion', 'centro_formacion', 'nombre_sede'],
+            'tipo_oferta': ['tipo_de_oferta', 'tipo_oferta'],
+            'denominacion_formacion': ['1_denominacion_de_la_formacion', 'denominacion_formacion', 'denominacion_programa', 'nombre_programa'],
+            'modalidad': ['2_modalidad', 'modalidad'],
+            'codigo_programa': ['3_codigo_programa', 'codigo_programa', 'cod_programa'],
+            'version_programa': ['4_version_del_programa', 'version_programa', 'version'],
+            'resolucion_snies': ['5_no_resolucion,_fecha_y_codigo_snies', 'resolucion_snies', 'snies', 'resolucion'],
+            'justificacion_oferta': ['6_justificacion_de_la_oferta_educativa', 'justificacion_oferta', 'justificacion'],
+            'grupos': ['7_grupos', 'grupos', 'grupo'],
+            'cupos': ['8_cupos', 'cupos', 'cupo'],
+            'duracion_meses': ['9_duracion_del_programa_meses', 'duracion_meses', 'duracion', 'duracion_en_meses'],
+            'municipio': ['10_municipio', 'municipio', 'municipio_formacion'],
+            'sede': ['11_sede', 'sede', 'nombre_sede'],
+            'codigo_indicativa': ['codigo_indicativa', 'cod_indicativa'],
+            'horario_formacion': ['horario_formacion', 'horario'],
+            'estrategia': ['estrategia', 'estrategia_programa'],
+            'fecha_inicio': ['fecha_inicio', 'inicio'],
+            'fecha_fin': ['fecha_fin', 'fin'],
+            'oferta': ['no_de_oferta', 'no_oferta', 'oferta'],
+            'verificado': ['verificado', 'verificacion'],
+        }
+
+        mapped = pd.DataFrame(index=df.index)
+        for target, alias_list in aliases.items():
+            src = get_first_existing_column(df, [normalize_col_name(a) for a in alias_list])
+            mapped[target] = df[src] if src else None
+        mapped['verificado'] = None
+
+        int_cols = ['version_programa', 'grupos', 'cupos', 'duracion_meses', 'oferta']
+        for col in int_cols:
+            mapped[col] = pd.to_numeric(mapped[col], errors='coerce').astype('Int64')
+
+        for col in ['fecha_inicio', 'fecha_fin']:
+            mapped[col] = mapped[col].apply(_parse_excel_fecha_value)
+
+        text_cols = [
+            'codigo_centro', 'centro_formacion', 'tipo_oferta', 'denominacion_formacion', 'modalidad',
+            'codigo_programa', 'resolucion_snies', 'justificacion_oferta', 'municipio', 'sede',
+            'codigo_indicativa', 'horario_formacion', 'estrategia'
+        ]
+        for col in text_cols:
+            mapped[col] = mapped[col].apply(clean_optional_text)
+
+        mapped = mapped.where(pd.notna(mapped), None)
+        # Algunas hojas conservan filas vacías dentro del rango usado; descartarlas
+        # evita insertar registros fantasmas sin datos.
+        mapped = mapped.dropna(how='all').reset_index(drop=True)
+        if mapped.empty:
+            raise HTTPException(status_code=400, detail='El Excel no contiene filas válidas')
+        rows = mapped.to_dict(orient='records')
+
+        # Si por alguna razón 'oferta' no quedó mapeada, forzar la columna detectada por nombre.
+        if 'oferta' in mapped.columns and mapped['oferta'].isnull().all():
+            src = get_first_existing_column(df, ['no_de_oferta', 'no_oferta', 'oferta'])
+            if src:
+                mapped['oferta'] = df[src]
+                rows = mapped.to_dict(orient='records')
+
+        with engine.connect() as conn:
+            create_sql = """
+            CREATE TABLE IF NOT EXISTS OFERTA_seguimiento_metas (
+                id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                codigo_centro VARCHAR(10) NULL,
+                centro_formacion VARCHAR(150) NULL,
+                tipo_oferta VARCHAR(50) NULL,
+                denominacion_formacion VARCHAR(255) NULL,
+                modalidad VARCHAR(50) NULL,
+                codigo_programa VARCHAR(20) NULL,
+                version_programa INT NULL,
+                resolucion_snies TEXT NULL,
+                justificacion_oferta TEXT NULL,
+                grupos INT NULL,
+                cupos INT NULL,
+                duracion_meses INT NULL,
+                municipio VARCHAR(100) NULL,
+                sede VARCHAR(255) NULL,
+                codigo_indicativa VARCHAR(255) NULL,
+                horario_formacion VARCHAR(150) NULL,
+                estrategia VARCHAR(150) NULL,
+                fecha_inicio DATE NULL,
+                fecha_fin DATE NULL,
+                oferta TINYINT NULL,
+                verificado VARCHAR(30) NULL,
+                fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+            conn.execute(text(create_sql))
+            try:
+                conn.execute(text('ALTER TABLE OFERTA_seguimiento_metas ADD COLUMN oferta TINYINT NULL'))
+            except Exception:
+                pass
+            try:
+                conn.execute(text('ALTER TABLE OFERTA_seguimiento_metas MODIFY COLUMN codigo_indicativa VARCHAR(255) NULL'))
+            except Exception:
+                pass
+            try:
+                conn.execute(text('ALTER TABLE OFERTA_seguimiento_metas MODIFY COLUMN verificado VARCHAR(30) NULL'))
+            except Exception:
+                pass
+
+            catalogo_cod_ver = set()
+            try:
+                catalogo_result = conn.execute(
+                    text(
+                        """
+                        SELECT TRIM(UPPER(cod_ver)) AS cod_ver
+                        FROM catalogo
+                        WHERE cod_ver IS NOT NULL AND TRIM(cod_ver) <> ''
+                        """
+                    )
+                )
+                catalogo_cod_ver = {
+                    str(row[0]).strip().upper()
+                    for row in catalogo_result.fetchall()
+                    if row[0] is not None and str(row[0]).strip() != ''
+                }
+            except Exception:
+                catalogo_cod_ver = set()
+
+            inserted = 0
+            for r in rows:
+                # Primero verificar contra registro calificado
+                reg_calificado_verif = _check_registro_calificado_vigencia(conn, r.get('codigo_programa'))
+                if reg_calificado_verif:
+                    verif_db = reg_calificado_verif
+                else:
+                    # Si no está en registro calificado, verificar con catálogo
+                    cod_ver = _build_cod_ver(r.get('codigo_programa'), r.get('version_programa'))
+                    if cod_ver and cod_ver.strip().upper() in catalogo_cod_ver:
+                        verif_db = 'VERIFICADO'
+                    else:
+                        verif_db = 'VERIFICACION MANUAL'
+
+                def _clean_mysql_value(value):
+                    if value is None:
+                        return None
+                    try:
+                        if pd.isna(value):
+                            return None
+                    except Exception:
+                        pass
+                    if isinstance(value, float):
+                        if value.is_integer():
+                            return int(value)
+                        return value
+                    if isinstance(value, str):
+                        text_value = value.strip()
+                        if text_value.lower() in {'nan', 'nat', 'none', ''}:
+                            return None
+                        if text_value.endswith('.0') and text_value[:-2].isdigit():
+                            return text_value[:-2]
+                        return text_value
+                    return value
+
+                def _clean_text_field(field_name, value):
+                    text_value = _clean_mysql_value(value)
+                    if text_value is None:
+                        return None
+                    if not isinstance(text_value, str):
+                        return text_value
+
+                    max_lengths = {
+                        'codigo_centro': 10,
+                        'centro_formacion': 150,
+                        'tipo_oferta': 50,
+                        'denominacion_formacion': 255,
+                        'modalidad': 50,
+                        'codigo_programa': 20,
+                        'municipio': 100,
+                        'sede': 255,
+                        'codigo_indicativa': 255,
+                        'horario_formacion': 150,
+                        'estrategia': 150,
+                    }
+                    max_len = max_lengths.get(field_name)
+                    if max_len is not None and len(text_value) > max_len:
+                        text_value = text_value[:max_len]
+                    return text_value
+
+                # Asegurar que 'oferta' no sea NULL para evitar errores de integridad
+                tmp_oferta = _clean_mysql_value(r.get('oferta'))
+                try:
+                    oferta_val = int(tmp_oferta) if tmp_oferta is not None else 0
+                except Exception:
+                    try:
+                        oferta_val = int(float(tmp_oferta)) if tmp_oferta is not None else 0
+                    except Exception:
+                        oferta_val = 0
+
+                params = {
+                    'codigo_centro': _clean_text_field('codigo_centro', r.get('codigo_centro')),
+                    'centro_formacion': _clean_text_field('centro_formacion', r.get('centro_formacion')),
+                    'tipo_oferta': _clean_text_field('tipo_oferta', r.get('tipo_oferta')),
+                    'denominacion_formacion': _clean_text_field('denominacion_formacion', r.get('denominacion_formacion')),
+                    'modalidad': _clean_text_field('modalidad', r.get('modalidad')),
+                    'codigo_programa': _clean_text_field('codigo_programa', r.get('codigo_programa')),
+                    'version_programa': _clean_mysql_value(r.get('version_programa')),
+                    'resolucion_snies': _clean_mysql_value(r.get('resolucion_snies')),
+                    'justificacion_oferta': _clean_mysql_value(r.get('justificacion_oferta')),
+                    'grupos': _clean_mysql_value(r.get('grupos')),
+                    'cupos': _clean_mysql_value(r.get('cupos')),
+                    'duracion_meses': _clean_mysql_value(r.get('duracion_meses')),
+                    'municipio': _clean_text_field('municipio', r.get('municipio')),
+                    'sede': _clean_text_field('sede', r.get('sede')),
+                    'codigo_indicativa': _clean_text_field('codigo_indicativa', r.get('codigo_indicativa')),
+                    'horario_formacion': _clean_text_field('horario_formacion', r.get('horario_formacion')),
+                    'estrategia': _clean_text_field('estrategia', r.get('estrategia')),
+                    'fecha_inicio': _clean_mysql_value(r.get('fecha_inicio')),
+                    'fecha_fin': _clean_mysql_value(r.get('fecha_fin')),
+                    'oferta': oferta_val,
+                    'verificado': _clean_mysql_value(verif_db),
+                }
+
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO OFERTA_seguimiento_metas (
+                            codigo_centro, centro_formacion, tipo_oferta, denominacion_formacion, modalidad,
+                            codigo_programa, version_programa, resolucion_snies, justificacion_oferta, grupos,
+                            cupos, duracion_meses, municipio, sede, codigo_indicativa, horario_formacion,
+                            estrategia, fecha_inicio, fecha_fin, oferta, verificado
+                        ) VALUES (
+                            :codigo_centro, :centro_formacion, :tipo_oferta, :denominacion_formacion, :modalidad,
+                            :codigo_programa, :version_programa, :resolucion_snies, :justificacion_oferta, :grupos,
+                            :cupos, :duracion_meses, :municipio, :sede, :codigo_indicativa, :horario_formacion,
+                            :estrategia, :fecha_inicio, :fecha_fin, :oferta, :verificado
+                        )
+                        """
+                    ),
+                        params
+                )
+                inserted += 1
+
+            conn.commit()
+
+        return {
+            'status': 'success',
+            'message': f'Se insertaron {inserted} filas en OFERTA_seguimiento_metas',
+            'rows_processed': inserted,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al guardar en OFERTA_seguimiento_metas: {e}')
+
+
+async def _get_oferta_data(verificado_filter: Optional[str] = None):
+    try:
+        with engine.connect() as conn:
+            check_sql = """
+            SELECT COUNT(*) as count
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'OFERTA_seguimiento_metas'
+            """
+            exists = conn.execute(text(check_sql)).fetchone()
+            if not exists or exists[0] == 0:
+                return []
+
+            # Construir WHERE clause si hay filtro
+            where_clause = ''
+            if verificado_filter:
+                v = str(verificado_filter).strip().upper()
+                if v in {'VERIFICADO', 'NO VERIFICADO', 'VERIFICACION MANUAL', 'REGISTRO VENCIDO'}:
+                    where_clause = f"WHERE verificado = '{v}'"
+            
+            query = f"""
+                SELECT id, codigo_centro, centro_formacion, tipo_oferta, denominacion_formacion,
+                       modalidad, codigo_programa, version_programa, resolucion_snies,
+                       justificacion_oferta, grupos, cupos, duracion_meses, municipio, sede,
+                       codigo_indicativa, horario_formacion, estrategia, fecha_inicio,
+                       fecha_fin, oferta, verificado, fecha_registro
+                FROM OFERTA_seguimiento_metas
+                {where_clause}
+                ORDER BY fecha_registro DESC
+                LIMIT 1000
+            """
+            
+            result = conn.execute(text(query))
+            out = []
+            for r in result.fetchall():
+                row = dict(r._mapping)
+                # Convertir fechas a strings ISO
+                if row.get('fecha_inicio'):
+                    row['fecha_inicio'] = str(row['fecha_inicio'])
+                if row.get('fecha_fin'):
+                    row['fecha_fin'] = str(row['fecha_fin'])
+                if row.get('fecha_registro'):
+                    row['fecha_registro'] = str(row['fecha_registro'])
+                row['verificado'] = _normalize_verificado_to_front(row.get('verificado'))
+                out.append(row)
+            return out
+    except Exception as e:
+        print(f"Error in _get_oferta_data: {e}")
+        return []
+
+
+async def _update_oferta_verificado(oferta_id: int, verificado_value: Optional[str]):
+    try:
+        with engine.connect() as conn:
+            db_value = _map_verificado_to_db(conn, verificado_value)
+            upd = conn.execute(
+                text("UPDATE OFERTA_seguimiento_metas SET verificado = :v WHERE id = :id"),
+                {'v': db_value, 'id': oferta_id},
+            )
+            conn.commit()
+            return upd.rowcount
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error actualizando verificado: {e}')
+
+
+@app.post('/seguimiento-metas/upload-oferta')
+async def upload_oferta(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(('.xls', '.xlsx')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+    content = await file.read()
+    df = _read_excel_oferta(content)
+    result = await _process_oferta(df)
+    return JSONResponse(result)
+
+
+@app.get('/seguimiento-metas/data')
+async def get_oferta_list(verificado: Optional[str] = None):
+    data = await _get_oferta_data(verificado)
+    return JSONResponse(content=jsonable_encoder({'items': data, 'total': len(data)}))
+
+
+class VerificadoUpdateModel(BaseModel):
+    id: int
+    verificado: Optional[str] = None
+
+
+@app.post('/seguimiento-metas/update-verificado')
+async def post_update_verificado(payload: VerificadoUpdateModel):
+    if payload.verificado is not None and payload.verificado not in {'VERIFICADO', 'NO VERIFICADO', 'VERIFICACION MANUAL', 'REGISTRO VENCIDO'}:
+        raise HTTPException(status_code=400, detail='Valor de verificado inválido')
+    count = await _update_oferta_verificado(payload.id, payload.verificado)
+    return JSONResponse({'updated': count})
 
 
 @app.get('/')
@@ -677,28 +1191,35 @@ def detect_header_row(df_raw: pd.DataFrame, max_scan_rows: int = 30) -> Optional
 
 
 def read_excel_with_header_detection(content: bytes) -> pd.DataFrame:
-    read_attempts = [
-        {'engine': 'openpyxl'},
-        {},
-    ]
-    last_error = None
+    try:
+        # Usar openpyxl en data_only=True para obtener el valor calculado de celdas con fórmulas.
+        wb = load_workbook(io.BytesIO(content), data_only=True, read_only=True)
+        ws = wb.active
 
-    for kwargs in read_attempts:
-        try:
-            df_default = pd.read_excel(io.BytesIO(content), **kwargs)
-            if looks_like_expected_headers(df_default.columns):
-                return df_default
+        raw_rows = list(ws.iter_rows(values_only=True))
+        if not raw_rows:
+            raise HTTPException(status_code=400, detail='El Excel no contiene filas')
 
-            df_raw = pd.read_excel(io.BytesIO(content), header=None, **kwargs)
-            header_row = detect_header_row(df_raw)
-            if header_row is not None:
-                return pd.read_excel(io.BytesIO(content), header=header_row, **kwargs)
+        df_raw = pd.DataFrame(raw_rows)
 
-            return df_default
-        except Exception as e:
-            last_error = e
+        # Intentar encontrar la fila de encabezado en las primeras filas.
+        header_row = detect_header_row(df_raw)
+        if header_row is None:
+            header_row = 1 if len(df_raw.index) > 1 else 0
 
-    raise HTTPException(status_code=400, detail=f'No se pudo leer el Excel: {last_error}')
+        headers = df_raw.iloc[header_row].tolist()
+        data = df_raw.iloc[header_row + 1 :].reset_index(drop=True)
+        data.columns = headers
+
+        if looks_like_expected_headers(data.columns):
+            return data
+
+        # Si no coincide, devolver de todos modos la tabla ya con encabezado detectado.
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'No se pudo leer el Excel: {e}')
 
 
 def normalize_tipo(value: str) -> str:
@@ -3614,3 +4135,5 @@ def update_fichas(req: UpdateRequest):
         raise HTTPException(status_code=500, detail=f'Error al actualizar registros: {e}')
 
     return JSONResponse({'updated_rows': result.rowcount})
+
+

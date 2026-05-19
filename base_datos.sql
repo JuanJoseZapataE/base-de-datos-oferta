@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS `registro_calificado_presencial` (
     INDEX `idx_rcp_fecha_registro` (`fecha_registro`)
 );
 
-CREATE TABLE IF NOT EXISTS `OFERTA` (
+CREATE TABLE IF NOT EXISTS `OFERTA_seguimiento_metas` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `codigo_centro` VARCHAR(10),
     `centro_formacion` VARCHAR(150),
@@ -193,15 +193,16 @@ CREATE TABLE IF NOT EXISTS `OFERTA` (
     `duracion_meses` INT,
     `municipio` VARCHAR(100),
     `sede` VARCHAR(255),
-    `codigo_indicativa` VARCHAR(20),
+    `codigo_indicativa` VARCHAR(255),
     `horario_formacion` VARCHAR(150),
     `estrategia` VARCHAR(150),
     `fecha_inicio` DATE,
     `fecha_fin` DATE,
     `fecha_registro` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `oferta` TINYINT ,
 
     -- Campo de verificación simple
-    `verificado` ENUM('SÍ', 'NO') DEFAULT NULL, 
+    `verificado` VARCHAR(30) DEFAULT NULL, 
 
     PRIMARY KEY (`id`),
 
