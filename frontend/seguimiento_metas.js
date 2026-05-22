@@ -58,6 +58,7 @@ function renderCatalogo(rows) {
       <td>${escapeHtml(row.prf_duracion_maxima || '—')}</td>
       <td>${escapeHtml(row.prf_dur_etapa_lectiva || '—')}</td>
       <td>${escapeHtml(row.prf_dur_etapa_prod || '—')}</td>
+      <td><small><span class="badge ${row.tipo_programa ? 'bg-info' : 'bg-secondary'}">${escapeHtml(row.tipo_programa || 'Sin asignar')}</span></small></td>
     </tr>
   `).join('');
 }
@@ -200,6 +201,85 @@ async function uploadCatalogoExcel() {
     setTimeout(hideProgress, 600);
   }
 }
+
+// ===== MINI MÓDULO: AGREGAR PROGRAMAS EN CATÁLOGO =====
+
+function showAgregarProgramasStatus(message, type = 'secondary') {
+  const el = document.getElementById('agregarProgramasStatus');
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${escapeHtml(message)}</div>`;
+}
+
+function setAgregarProgramasProgress(percent) {
+  const container = document.getElementById('agregarProgramasProgressContainer');
+  const bar = document.getElementById('agregarProgramasProgressBar');
+  if (!container || !bar) return;
+  container.style.display = 'block';
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  bar.style.width = `${value}%`;
+  bar.setAttribute('aria-valuenow', String(value));
+}
+
+function hideAgregarProgramasProgress() {
+  const container = document.getElementById('agregarProgramasProgressContainer');
+  if (container) container.style.display = 'none';
+  setAgregarProgramasProgress(0);
+}
+
+async function uploadAgregarProgramas() {
+  const tipoProgramaSelect = document.getElementById('tipoProgramaSelect');
+  const input = document.getElementById('agregarProgramasFile');
+  
+  const tipoPrograma = tipoProgramaSelect?.value?.trim() || '';
+  const files = input && input.files ? Array.from(input.files) : [];
+  
+  if (!tipoPrograma) {
+    alert('Selecciona un tipo de programa primero.');
+    return;
+  }
+  
+  if (!files.length) {
+    alert('Selecciona un archivo Excel primero.');
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('file', files[0]);
+  fd.append('tipo_programa', tipoPrograma);
+
+  try {
+    setAgregarProgramasProgress(10);
+    showAgregarProgramasStatus('Procesando códigos...', 'info');
+    
+    const resp = await fetch(`${API_BASE}/catalogo/agregar-programas`, {
+      method: 'POST',
+      body: fd,
+    });
+    
+    setAgregarProgramasProgress(75);
+    const data = await resp.json().catch(() => null);
+    
+    if (!resp.ok) {
+      const msg = data && data.detail ? data.detail : `${resp.status} ${resp.statusText}`;
+      throw new Error(msg);
+    }
+    
+    setAgregarProgramasProgress(100);
+    const message = `✓ Completado: ${data.updated} programas actualizados, ${data.not_found} no encontrados. Tipo: ${escapeHtml(data.tipo_programa)}.`;
+    showAgregarProgramasStatus(message, 'success');
+    
+    input.value = '';
+    await loadCatalogo();
+  } catch (err) {
+    console.error(err);
+    showAgregarProgramasStatus(`Error: ${err.message}`, 'danger');
+  } finally {
+    setTimeout(hideAgregarProgramasProgress, 600);
+  }
+}
+
+// Agregar event listener para Agregar Programas
+document.getElementById('uploadAgregarProgramasBtn')?.addEventListener('click', uploadAgregarProgramas);
 
 // ===== FUNCIONES PARA REGISTRO CALIFICADO =====
 
@@ -347,6 +427,18 @@ async function uploadRegistroExcel() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // ===== INICIALIZACIÓN: Ocultar todas las secciones de subida de archivos por defecto =====
+  const catalogoSection = document.getElementById('catalogoSection');
+  const registroSection = document.getElementById('registroSection');
+  const ofertaSection = document.getElementById('ofertaSection');
+  const consolidadoSection = document.getElementById('consolidadoSection');
+  const subidaArchivosNavbar = document.getElementById('subidaArchivosNavbar');
+
+  if (catalogoSection) catalogoSection.style.display = 'none';
+  if (registroSection) registroSection.style.display = 'none';
+  if (ofertaSection) ofertaSection.style.display = 'none';
+  if (consolidadoSection) consolidadoSection.style.display = 'none';
+
   const uploadBtn = document.getElementById('uploadCatalogoBtn');
   if (uploadBtn) uploadBtn.addEventListener('click', uploadCatalogoExcel);
 
@@ -363,17 +455,6 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         loadCatalogo();
       }
-    });
-  }
-
-  const toggleSectionBtn = document.getElementById('toggleSectionBtn');
-  const section = document.getElementById('catalogoSection');
-  if (toggleSectionBtn && section) {
-    toggleSectionBtn.addEventListener('click', () => {
-      const isHidden = section.style.display === 'none' || section.hidden;
-      section.style.display = isHidden ? 'block' : 'none';
-      section.hidden = false;
-      toggleSectionBtn.textContent = isHidden ? 'Ocultar sección catalogo' : 'Mostrar sección catalogo';
     });
   }
 
@@ -419,6 +500,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ===== FUNCIÓN ANTERIOR (DEPRECATED) - Reemplazada por toggles exclusivos =====
+  // Las funciones syncSectionToggle y bindSectionToggle fueron reemplazadas por 
+  // la lógica de toggles exclusivos para mejor UX
+
+  // ===== TOGGLES EXCLUSIVOS PARA SUBMÓDULOS DE SUBIDA =====
+  const submoduleButtons = {
+    toggleSectionBtn: 'catalogoSection',
+    toggleRegistroSection: 'registroSection',
+    toggleOfertaSection: 'ofertaSection',
+    toggleConsolidadoSection: 'consolidadoSection'
+  };
+
+  Object.entries(submoduleButtons).forEach(([buttonId, sectionId]) => {
+    const button = document.getElementById(buttonId);
+    const section = document.getElementById(sectionId);
+    
+    if (button && section) {
+      button.addEventListener('click', () => {
+        // Ocultar todos los demás submódulos
+        Object.entries(submoduleButtons).forEach(([otherId, otherSectionId]) => {
+          const otherBtn = document.getElementById(otherId);
+          const otherSection = document.getElementById(otherSectionId);
+          
+          if (otherSection && otherSectionId !== sectionId) {
+            otherSection.style.display = 'none';
+            if (otherBtn) {
+              otherBtn.classList.remove('active');
+              otherBtn.setAttribute('aria-pressed', 'false');
+            }
+          }
+        });
+        
+        // Mostrar el submódulo seleccionado
+        section.style.display = 'block';
+        button.classList.add('active');
+        button.setAttribute('aria-pressed', 'true');
+      });
+    }
+  });
+
   loadCatalogo();
   
   // Event listeners para Registro Calificado
@@ -435,21 +556,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         registroTableContainer.style.display = 'none';
         toggleRegistroTableBtn.textContent = 'Mostrar tabla';
-      }
-    });
-  }
-
-  // Toggle para la sección de Registro Calificado
-  const toggleRegistroSection = document.getElementById('toggleRegistroSection');
-  const registroSection = document.getElementById('registroSection');
-  if (toggleRegistroSection) {
-    toggleRegistroSection.addEventListener('click', () => {
-      if (registroSection.style.display === 'none') {
-        registroSection.style.display = 'block';
-        toggleRegistroSection.textContent = 'Ocultar Registro Calificado';
-      } else {
-        registroSection.style.display = 'none';
-        toggleRegistroSection.textContent = 'Mostrar Registro Calificado';
       }
     });
   }
@@ -609,22 +715,320 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const toggleOfertaSection = document.getElementById('toggleOfertaSection');
-  const ofertaSection = document.getElementById('ofertaSection');
-  if (toggleOfertaSection) {
-    toggleOfertaSection.addEventListener('click', () => {
-      if (!ofertaSection) return;
-      if (ofertaSection.style.display === 'none') {
-        ofertaSection.style.display = 'block';
-        toggleOfertaSection.textContent = 'Ocultar OFERTA';
+  // Cargar OFERTA inicialmente
+  loadOfertaData();
+
+  // ===== FUNCIONES PARA CONSOLIDADO COLEGIOS =====
+
+  function showConsolidadoStatus(message, type = 'secondary') {
+    const el = document.getElementById('consolidadoStatus');
+    if (!el) return;
+    el.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${escapeHtml(message)}</div>`;
+  }
+
+  function setConsolidadoProgress(percent) {
+    const container = document.getElementById('consolidadoProgressContainer');
+    const bar = document.getElementById('consolidadoProgressBar');
+    if (!container || !bar) return;
+    container.style.display = 'block';
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+    bar.style.width = `${value}%`;
+    bar.setAttribute('aria-valuenow', String(value));
+  }
+
+  function hideConsolidadoProgress() {
+    const container = document.getElementById('consolidadoProgressContainer');
+    if (container) container.style.display = 'none';
+    setConsolidadoProgress(0);
+  }
+
+  function renderConsolidadoTable(rows) {
+    const tbody = document.getElementById('consolidadoTableBody');
+    if (!tbody) return;
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Sin registros</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map((row) => `
+      <tr>
+        <td><small>${escapeHtml(row.id || '—')}</small></td>
+        <td><small>${escapeHtml(row.nombre_real_institucion || '—')}</small></td>
+        <td><small>${escapeHtml(row.nombres_sofia_plus || '—')}</small></td>
+        <td><small>${escapeHtml(row.municipio || '—')}</small></td>
+        <td><small>${escapeHtml(row.clasificacion || '—')}</small></td>
+        <td><small>${row.fecha_registro ? new Date(row.fecha_registro).toLocaleDateString('es-CO') : '—'}</small></td>
+      </tr>
+    `).join('');
+  }
+
+  async function loadConsolidadoData() {
+    try {
+      showConsolidadoStatus('Cargando Consolidado Colegios...', 'info');
+      const resp = await fetch(`${API_BASE}/consolidado-colegios/data`);
+      const data = await resp.json().catch(() => null);
+
+      if (!resp.ok) {
+        const msg = data && data.detail ? data.detail : `${resp.status} ${resp.statusText}`;
+        throw new Error(msg);
+      }
+
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const total = data?.total || items.length || 0;
+
+      document.getElementById('consolidadoTotal').textContent = total;
+      renderConsolidadoTable(items);
+
+      if (total === 0) {
+        showConsolidadoStatus('Sin registros aún', 'warning');
       } else {
-        ofertaSection.style.display = 'none';
-        toggleOfertaSection.textContent = 'Mostrar OFERTA';
+        showConsolidadoStatus(`✓ ${total} registros cargados`, 'success');
+      }
+    } catch (error) {
+      showConsolidadoStatus(`Error: ${error.message}`, 'danger');
+      renderConsolidadoTable([]);
+    }
+  }
+
+  async function uploadConsolidadoExcel() {
+    const input = document.getElementById('consolidadoFile');
+    const files = input && input.files ? Array.from(input.files) : [];
+    if (!files.length) {
+      alert('Selecciona un archivo Excel primero.');
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('file', files[0]);
+
+    try {
+      setConsolidadoProgress(10);
+      showConsolidadoStatus('Subiendo Excel de Consolidado Colegios...', 'info');
+      const resp = await fetch(`${API_BASE}/consolidado-colegios/upload-excel`, {
+        method: 'POST',
+        body: fd,
+      });
+      setConsolidadoProgress(75);
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        const msg = data && data.detail ? data.detail : `${resp.status} ${resp.statusText}`;
+        throw new Error(msg);
+      }
+      setConsolidadoProgress(100);
+      showConsolidadoStatus(`Subida completada. Registros insertados: ${data.inserted || 0}.`, 'success');
+      input.value = '';
+      await loadConsolidadoData();
+    } catch (err) {
+      console.error(err);
+      showConsolidadoStatus(`Error al subir Consolidado Colegios: ${err.message}`, 'danger');
+    } finally {
+      setTimeout(hideConsolidadoProgress, 600);
+    }
+  }
+
+  // Agregar event listeners de Consolidado Colegios
+  document.getElementById('uploadConsolidadoBtn')?.addEventListener('click', uploadConsolidadoExcel);
+  document.getElementById('reloadConsolidadoBtn')?.addEventListener('click', loadConsolidadoData);
+
+  const toggleConsolidadoTableBtn = document.getElementById('toggleConsolidadoTableBtn');
+  const consolidadoTableContainer = document.getElementById('consolidadoTableContainer');
+  if (toggleConsolidadoTableBtn) {
+    toggleConsolidadoTableBtn.addEventListener('click', () => {
+      if (!consolidadoTableContainer) return;
+      if (consolidadoTableContainer.style.display === 'none') {
+        consolidadoTableContainer.style.display = 'block';
+        toggleConsolidadoTableBtn.textContent = 'Ocultar tabla Consolidado Colegios';
+      } else {
+        consolidadoTableContainer.style.display = 'none';
+        toggleConsolidadoTableBtn.textContent = 'Mostrar tabla Consolidado Colegios';
       }
     });
   }
 
-  // Cargar OFERTA inicialmente
-  loadOfertaData();
+  // Cargar Consolidado Colegios inicialmente
+  loadConsolidadoData();
+
+  // ===== FUNCIONES DE EXPORTACIÓN A EXCEL =====
+  
+  function downloadExcel(url, filename) {
+    fetch(url)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Error en la descarga: ${response.status}`);
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        const link = document.createElement('a');
+        const urlBlob = window.URL.createObjectURL(blob);
+        link.href = urlBlob;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(urlBlob);
+      })
+      .catch(err => {
+        console.error('Error descargando archivo:', err);
+        alert(`Error al descargar archivo: ${err.message}`);
+      });
+  }
+
+  // Event listeners para botones de exportación
+  document.getElementById('exportCatalogoBtn')?.addEventListener('click', () => {
+    downloadExcel(`${API_BASE}/catalogo/exportar-excel`, 'catalogo.xlsx');
+  });
+
+  document.getElementById('exportRegistroBtn')?.addEventListener('click', () => {
+    downloadExcel(`${API_BASE}/registro-calificado/exportar-excel`, 'registro_calificado.xlsx');
+  });
+
+  document.getElementById('exportOfertaBtn')?.addEventListener('click', () => {
+    downloadExcel(`${API_BASE}/oferta/exportar-excel`, 'oferta.xlsx');
+  });
+
+  document.getElementById('exportConsolidadoBtn')?.addEventListener('click', () => {
+    downloadExcel(`${API_BASE}/consolidado-colegios/exportar-excel`, 'consolidado_colegios.xlsx');
+  });
+
+  // ===== NUEVOS EVENTOS PARA NAVBAR PRINCIPAL =====
+  
+  // Toggle para "Subida de Archivos" - Muestra/Oculta el navbar secundario y todas las secciones
+  const toggleSubidaArchivosBtn = document.getElementById('toggleSubidaArchivosSection');
+  const toggleSeguimientoMetasBtn = document.getElementById('toggleSeguimientoMetasModuleBtn');
+  const seguimientoMetasSection = document.getElementById('seguimientoMetasModuleSection');
+  
+  if (toggleSubidaArchivosBtn && subidaArchivosNavbar) {
+    toggleSubidaArchivosBtn.addEventListener('click', () => {
+      // Mostrar navbar secundario y secciones de subida
+      subidaArchivosNavbar.style.display = 'block';
+      if (catalogoSection) catalogoSection.style.display = 'block';
+      if (registroSection) registroSection.style.display = 'block';
+      if (ofertaSection) ofertaSection.style.display = 'block';
+      if (consolidadoSection) consolidadoSection.style.display = 'block';
+      
+      // Ocultar módulo de Seguimiento a Metas
+      if (seguimientoMetasSection) seguimientoMetasSection.style.display = 'none';
+      
+      // Actualizar estados de botones
+      toggleSubidaArchivosBtn.classList.add('active');
+      toggleSubidaArchivosBtn.setAttribute('aria-pressed', 'true');
+      if (toggleSeguimientoMetasBtn) {
+        toggleSeguimientoMetasBtn.classList.remove('active');
+        toggleSeguimientoMetasBtn.setAttribute('aria-pressed', 'false');
+      }
+    });
+  }
+
+  // Toggle para "Seguimiento a las Metas" - Muestra/Oculta el nuevo módulo
+  if (toggleSeguimientoMetasBtn && seguimientoMetasSection) {
+    toggleSeguimientoMetasBtn.addEventListener('click', () => {
+      // Mostrar módulo de Seguimiento a Metas
+      seguimientoMetasSection.style.display = 'block';
+      
+      // Ocultar navbar secundario y todas las secciones de subida de archivos
+      subidaArchivosNavbar.style.display = 'none';
+      if (catalogoSection) catalogoSection.style.display = 'none';
+      if (registroSection) registroSection.style.display = 'none';
+      if (ofertaSection) ofertaSection.style.display = 'none';
+      if (consolidadoSection) consolidadoSection.style.display = 'none';
+      
+      // Actualizar estados de botones
+      toggleSeguimientoMetasBtn.classList.add('active');
+      toggleSeguimientoMetasBtn.setAttribute('aria-pressed', 'true');
+      if (toggleSubidaArchivosBtn) {
+        toggleSubidaArchivosBtn.classList.remove('active');
+        toggleSubidaArchivosBtn.setAttribute('aria-pressed', 'false');
+      }
+    });
+  }
+
+  // ===== FUNCIONES PARA EL NUEVO MÓDULO "SEGUIMIENTO A LAS METAS" =====
+  
+  window.loadMetasPorCumplir = function() {
+    showStatus('Cargando metas por cumplir...', 'info');
+    // Placeholder - Se expandirá cuando el backend esté listo
+    setTimeout(() => {
+      showStatus('Funcionalidad en desarrollo', 'warning');
+    }, 1000);
+  };
+
+  window.loadMetasCumplidas = function() {
+    showStatus('Cargando metas cumplidas...', 'info');
+    // Placeholder - Se expandirá cuando el backend esté listo
+    setTimeout(() => {
+      showStatus('Funcionalidad en desarrollo', 'warning');
+    }, 1000);
+  };
+
+  window.loadAvanceGeneral = function() {
+    showStatus('Cargando avance general...', 'info');
+    // Placeholder - Se expandirá cuando el backend esté listo
+    setTimeout(() => {
+      showStatus('Funcionalidad en desarrollo', 'warning');
+    }, 1000);
+  };
+
+  // Event listener para cargar Excel de Seguimiento de Metas
+  document.getElementById('uploadSeguimientoMetasBtn')?.addEventListener('click', async () => {
+    const fileInput = document.getElementById('seguimientoMetasFile');
+    if (!fileInput || !fileInput.files.length) {
+      const statusEl = document.getElementById('seguimientoMetasStatus');
+      if (statusEl) statusEl.innerHTML = '<div class="alert alert-warning py-2 mb-0">Selecciona un archivo Excel</div>';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+      const statusEl = document.getElementById('seguimientoMetasStatus');
+      const progressContainer = document.getElementById('seguimientoMetasProgressContainer');
+      const progressBar = document.getElementById('seguimientoMetasProgressBar');
+      
+      if (progressContainer) progressContainer.style.display = 'block';
+      if (statusEl) statusEl.innerHTML = '<div class="alert alert-info py-2 mb-0">Cargando archivo...</div>';
+
+      const response = await fetch(`${API_BASE}/seguimiento-metas/upload-excel`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Error al cargar el archivo');
+      }
+
+      if (statusEl) {
+        statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">✅ ${data.message || 'Archivo cargado exitosamente'}</div>`;
+      }
+
+      fileInput.value = '';
+      setTimeout(() => {
+        if (progressContainer) progressContainer.style.display = 'none';
+      }, 500);
+    } catch (error) {
+      const statusEl = document.getElementById('seguimientoMetasStatus');
+      if (statusEl) statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">❌ Error: ${error.message}</div>`;
+    }
+  });
+
+  // Toggle para mostrar/ocultar tabla de Seguimiento de Metas
+  const toggleSeguimientoMetasTableBtn = document.getElementById('toggleSeguimientoMetasTableBtn');
+  const seguimientoMetasTableContainer = document.getElementById('seguimientoMetasTableContainer');
+  
+  if (toggleSeguimientoMetasTableBtn && seguimientoMetasTableContainer) {
+    toggleSeguimientoMetasTableBtn.addEventListener('click', () => {
+      if (seguimientoMetasTableContainer.style.display === 'none') {
+        seguimientoMetasTableContainer.style.display = 'block';
+        toggleSeguimientoMetasTableBtn.textContent = 'Ocultar tabla';
+      } else {
+        seguimientoMetasTableContainer.style.display = 'none';
+        toggleSeguimientoMetasTableBtn.textContent = 'Mostrar tabla';
+      }
+    });
+  }
 });
 

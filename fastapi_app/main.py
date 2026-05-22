@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 from sqlalchemy import create_engine, text, bindparam
 from openpyxl import load_workbook
-from openpyxl.styles import Alignment, Font
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 
@@ -2411,7 +2411,7 @@ def export_indicativa_excel(
     municipio: Optional[str] = None,
     search: Optional[str] = None,
 ):
-    """Exporta Excel de la tabla indicativa respetando los filtros activos."""
+    """Exporta Excel de la tabla indicativa respetando los filtros activos, con fecha de registro en B1."""
     clauses = []
     params: dict = {}
 
@@ -2481,7 +2481,6 @@ def export_indicativa_excel(
     if clauses:
         where_sql = ' WHERE ' + ' AND '.join(clauses)
 
-    # Exportar siempre todas las columnas de la tabla indicativa.
     sql = (
         'SELECT * FROM indicativa'
         f'{where_sql} '
@@ -2494,12 +2493,27 @@ def export_indicativa_excel(
         raise HTTPException(status_code=500, detail=f'Error al exportar indicativa: {e}')
 
     df_export = df.copy()
+    
+    # Detectar fecha de registro
+    fecha_registro_value = None
+    tiene_multiples_fechas = False
+    
+    if 'fecha_de_registro' in df_export.columns and not df_export.empty:
+        fechas_unicas = df_export['fecha_de_registro'].dropna().dt.date.unique() if hasattr(df_export['fecha_de_registro'], 'dt') else pd.Series(df_export['fecha_de_registro'].dropna()).unique()
+        if len(fechas_unicas) > 1:
+            tiene_multiples_fechas = True
+        elif len(fechas_unicas) == 1:
+            fecha_registro_value = str(fechas_unicas[0])
+    
+    # Remover columna fecha_de_registro si no hay múltiples fechas
+    if 'fecha_de_registro' in df_export.columns and not tiene_multiples_fechas:
+        df_export = df_export.drop('fecha_de_registro', axis=1)
 
-    # Encabezados legibles para Excel.
+    # Encabezados legibles para Excel
     original_cols = list(df_export.columns)
     df_export.columns = [export_header_label_indicativa(col) for col in df_export.columns]
 
-    # Columnas que SI se ven en el frontend (resto deben quedar ocultas en Excel).
+    # Columnas que SI se ven en el frontend
     visible_db_cols = {
         'nombre_sede',
         'nivel_de_formacion',
@@ -2512,9 +2526,21 @@ def export_indicativa_excel(
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export.to_excel(writer, index=False, sheet_name='indicativa')
+        # Escribir datos comenzando desde fila 3 si hay fecha_registro
+        if fecha_registro_value:
+            df_export.to_excel(writer, index=False, sheet_name='indicativa', startrow=2)
+        else:
+            df_export.to_excel(writer, index=False, sheet_name='indicativa')
 
         ws = writer.book['indicativa']
+        
+        # Agregar fecha de registro en B1
+        if fecha_registro_value:
+            ws['A1'] = 'Fecha de registro'
+            ws['B1'] = fecha_registro_value
+            ws['A1'].font = Font(bold=True, size=11)
+            ws['B1'].font = Font(size=11)
+        
         max_row = ws.max_row
         max_col = ws.max_column
 
@@ -2523,8 +2549,13 @@ def export_indicativa_excel(
             for cell in row:
                 cell.alignment = wrap_alignment
 
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
+        # Verde success de Bootstrap para encabezados
+        green_success = "198754"
+        header_row = 3 if fecha_registro_value else 1
+        for cell in ws[header_row]:
+            if cell.value:
+                cell.font = Font(bold=True, color="FFFFFF", size=11)
+                cell.fill = PatternFill(start_color=green_success, end_color=green_success, fill_type="solid")
 
         min_width = 12
         max_width = 60
@@ -2540,23 +2571,15 @@ def export_indicativa_excel(
             ws.column_dimensions[col_letter].width = adjusted
 
             # Ocultar en Excel las columnas que no se ven en la tabla del frontend.
-            header_value = ws.cell(row=1, column=col_idx).value
+            header_value = ws.cell(row=header_row, column=col_idx).value
             if header_value in hidden_header_labels:
                 ws.column_dimensions[col_letter].hidden = True
-
-        if max_col >= 1 and max_row >= 1:
-            last_col_letter = get_column_letter(max_col)
-            table_ref = f'A1:{last_col_letter}{max_row}'
-            table = Table(displayName='IndicativaExport', ref=table_ref)
-            style = TableStyleInfo(
-                name='TableStyleMedium9',
-                showFirstColumn=False,
-                showLastColumn=False,
-                showRowStripes=True,
-                showColumnStripes=False,
-            )
-            table.tableStyleInfo = style
-            ws.add_table(table)
+        
+        # Ocultar columna fecha_de_registro si hay múltiples fechas
+        if tiene_multiples_fechas and 'fecha_de_registro' in df.columns:
+            fecha_col_idx = list(df.columns).index('fecha_de_registro')
+            col_letter = get_column_letter(fecha_col_idx + 1)
+            ws.column_dimensions[col_letter].hidden = True
 
     output.seek(0)
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -2795,9 +2818,12 @@ def export_fichas_excel(
             for cell in row:
                 cell.alignment = wrap_alignment
 
-        # Encabezados en negrita para mejorar lectura.
+        # Verde success de Bootstrap para encabezados
+        green_success = "198754"
         for cell in ws[1]:
-            cell.font = Font(bold=True)
+            if cell.value:
+                cell.font = Font(bold=True, color="FFFFFF", size=11)
+                cell.fill = PatternFill(start_color=green_success, end_color=green_success, fill_type="solid")
 
         # Ajustar ancho por contenido: texto largo -> columna mas ancha, texto corto -> mas angosta.
         min_width = 12
@@ -3683,6 +3709,21 @@ def export_programas_excel(
 
     # Exportar todas las columnas de la tabla programas_formacion.
     df_export = df.copy()
+    
+    # Detectar fecha_corte
+    fecha_corte_value = None
+    tiene_multiples_fechas = False
+    
+    if 'fecha_corte' in df_export.columns and not df_export.empty:
+        fechas_unicas = df_export['fecha_corte'].dropna().dt.date.unique() if hasattr(df_export['fecha_corte'], 'dt') else pd.Series(df_export['fecha_corte'].dropna()).unique()
+        if len(fechas_unicas) > 1:
+            tiene_multiples_fechas = True
+        elif len(fechas_unicas) == 1:
+            fecha_corte_value = str(fechas_unicas[0])
+    
+    # Remover columna fecha_corte si no hay múltiples fechas
+    if 'fecha_corte' in df_export.columns and not tiene_multiples_fechas:
+        df_export = df_export.drop('fecha_corte', axis=1)
 
     # En el frontend se oculta la columna "id"; aqui la mantenemos en el Excel
     # pero la marcamos como oculta para que no aparezca a simple vista.
@@ -3693,9 +3734,21 @@ def export_programas_excel(
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export.to_excel(writer, index=False, sheet_name='programas')
+        # Escribir datos comenzando desde fila 3 si hay fecha_corte
+        if fecha_corte_value:
+            df_export.to_excel(writer, index=False, sheet_name='programas', startrow=2)
+        else:
+            df_export.to_excel(writer, index=False, sheet_name='programas')
 
         ws = writer.book['programas']
+        
+        # Agregar fecha_corte en B1
+        if fecha_corte_value:
+            ws['A1'] = 'Fecha de corte'
+            ws['B1'] = fecha_corte_value
+            ws['A1'].font = Font(bold=True, size=11)
+            ws['B1'].font = Font(size=11)
+        
         max_row = ws.max_row
         max_col = ws.max_column
 
@@ -3704,8 +3757,13 @@ def export_programas_excel(
             for cell in row:
                 cell.alignment = wrap_alignment
 
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
+        # Verde success de Bootstrap para encabezados
+        green_success = "198754"
+        header_row = 3 if fecha_corte_value else 1
+        for cell in ws[header_row]:
+            if cell.value:
+                cell.font = Font(bold=True, color="FFFFFF", size=11)
+                cell.fill = PatternFill(start_color=green_success, end_color=green_success, fill_type="solid")
 
         min_width = 12
         max_width = 60
@@ -3721,23 +3779,15 @@ def export_programas_excel(
             ws.column_dimensions[col_letter].width = adjusted
 
             # Ocultar columnas que no se muestran en la tabla del frontend.
-            header_value = ws.cell(row=1, column=col_idx).value
+            header_value = ws.cell(row=header_row, column=col_idx).value
             if header_value in hidden_programas_headers:
                 ws.column_dimensions[col_letter].hidden = True
-
-        if max_col >= 1 and max_row >= 1:
-            last_col_letter = get_column_letter(max_col)
-            table_ref = f'A1:{last_col_letter}{max_row}'
-            table = Table(displayName='ProgramasExport', ref=table_ref)
-            style = TableStyleInfo(
-                name='TableStyleMedium9',
-                showFirstColumn=False,
-                showLastColumn=False,
-                showRowStripes=True,
-                showColumnStripes=False,
-            )
-            table.tableStyleInfo = style
-            ws.add_table(table)
+        
+        # Ocultar columna fecha_corte si hay múltiples fechas
+        if tiene_multiples_fechas and 'fecha_corte' in df.columns:
+            fecha_col_idx = list(df.columns).index('fecha_corte')
+            col_letter = get_column_letter(fecha_col_idx + 1)
+            ws.column_dimensions[col_letter].hidden = True
 
     output.seek(0)
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -4135,5 +4185,499 @@ def update_fichas(req: UpdateRequest):
         raise HTTPException(status_code=500, detail=f'Error al actualizar registros: {e}')
 
     return JSONResponse({'updated_rows': result.rowcount})
+
+
+# ============================================================================
+# FUNCIONES Y ENDPOINTS PARA CONSOLIDADO COLEGIOS
+# ============================================================================
+
+def _read_excel_consolidado_colegios(content: bytes) -> pd.DataFrame:
+    """Lee un archivo Excel de consolidado colegios"""
+    try:
+        df = pd.read_excel(io.BytesIO(content), sheet_name=0, dtype=str)
+        return df
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Error al leer el archivo Excel: {str(e)}'
+        )
+
+
+def _normalize_col_name_consolidado(col_name: str) -> str:
+    """Normaliza nombres de columna para búsqueda flexible"""
+    text = str(col_name).lower().strip()
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+    text = text.replace(' ', '_').replace('-', '_')
+    return text
+
+
+async def _process_consolidado_colegios(df: pd.DataFrame):
+    """Procesa el DataFrame de consolidado colegios e inserta en la tabla"""
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene filas')
+
+    # Normalizar nombres de columnas
+    df.columns = [_normalize_col_name_consolidado(col) for col in df.columns]
+
+    # Mapear encabezados del Excel a nombres de columnas de la tabla
+    column_mapping = {
+        'nombre_real_de_la_institucion': 'nombre_real_institucion',
+        'nombre_real_institucion': 'nombre_real_institucion',
+        'nombres_registrados_en_sofia_plus': 'nombres_sofia_plus',
+        'nombres_sofia_plus': 'nombres_sofia_plus',
+        'nombres_registrados_sofia': 'nombres_sofia_plus',
+        'municipio': 'municipio',
+        'clasificacion': 'clasificacion',
+        'clasificaci_n': 'clasificacion',
+    }
+
+    df_mapped = df.copy()
+    for original, mapped in column_mapping.items():
+        if original in df.columns and mapped not in df.columns:
+            df_mapped[mapped] = df[original]
+
+    # Seleccionar solo las columnas mapeadas
+    required_cols = ['nombre_real_institucion', 'nombres_sofia_plus', 'municipio', 'clasificacion']
+    for col in required_cols:
+        if col not in df_mapped.columns:
+            df_mapped[col] = None
+
+    df_mapped = df_mapped[required_cols].copy()
+
+    # Limpiar datos
+    def clean_text(val):
+        if pd.isna(val):
+            return None
+        text = str(val).strip()
+        return text if text else None
+
+    for col in df_mapped.columns:
+        df_mapped[col] = df_mapped[col].apply(clean_text)
+
+    # Convertir NaN a None
+    df_mapped = df_mapped.where(pd.notna(df_mapped), None)
+
+    # Eliminar filas completamente vacías
+    df_mapped = df_mapped.dropna(how='all').reset_index(drop=True)
+    if df_mapped.empty:
+        raise HTTPException(status_code=400, detail='No hay registros válidos después de validar')
+
+    try:
+        with engine.connect() as conn:
+            inserted_count = 0
+            for idx, row in df_mapped.iterrows():
+                values = {}
+                for col in df_mapped.columns:
+                    val = row[col]
+                    if pd.isna(val):
+                        values[col] = None
+                    else:
+                        values[col] = str(val).strip() if val else None
+
+                cols = list(values.keys())
+                col_names = ', '.join([f'`{c}`' for c in cols])
+                placeholders = ', '.join([f':{c}' for c in cols])
+
+                insert_sql = f"""
+                INSERT INTO consolidado_colegios ({col_names})
+                VALUES ({placeholders})
+                """
+
+                try:
+                    conn.execute(text(insert_sql), values)
+                    inserted_count += 1
+                except Exception as row_error:
+                    print(f"Error insertando fila {idx}: {row_error}")
+                    print(f"Valores: {values}")
+
+            conn.commit()
+
+        return {
+            'status': 'success',
+            'message': f'Se cargaron {inserted_count} registros correctamente en consolidado_colegios',
+            'inserted': inserted_count
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Error al guardar en base de datos: {str(e)}'
+        )
+
+
+@app.post('/consolidado-colegios/upload-excel')
+async def upload_consolidado_colegios_excel(file: UploadFile = File(...)):
+    """Sube un archivo Excel de Consolidado Colegios."""
+    if not file.filename.lower().endswith(('.xls', '.xlsx')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+
+    content = await file.read()
+
+    try:
+        df = _read_excel_consolidado_colegios(content)
+        result = await _process_consolidado_colegios(df)
+        return JSONResponse(result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al procesar archivo: {str(e)}')
+
+
+@app.get('/consolidado-colegios/data')
+async def get_consolidado_colegios_data():
+    """Obtiene los datos cargados de Consolidado Colegios."""
+    try:
+        with engine.connect() as conn:
+            # Verificar si la tabla existe
+            check_table_sql = """
+            SELECT COUNT(*) as count
+            FROM information_schema.TABLES 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'consolidado_colegios'
+            """
+            table_exists = conn.execute(text(check_table_sql)).fetchone()
+
+            if not table_exists or table_exists[0] == 0:
+                return JSONResponse({'items': [], 'total': 0, 'message': 'Tabla no existe aún'})
+
+            # Obtener TODOS los datos de la tabla
+            result = conn.execute(text("""
+                SELECT 
+                    id,
+                    nombre_real_institucion,
+                    nombres_sofia_plus,
+                    municipio,
+                    clasificacion,
+                    fecha_registro
+                FROM consolidado_colegios
+                ORDER BY fecha_registro DESC
+                LIMIT 10000
+            """))
+            rows = result.fetchall()
+            data = []
+            for row in rows:
+                row_dict = dict(row._mapping)
+                # Convertir fechas a ISO format string
+                for key in list(row_dict.keys()):
+                    val = row_dict[key]
+                    if val is not None and hasattr(val, 'isoformat'):
+                        row_dict[key] = val.isoformat()
+                data.append(row_dict)
+
+            return JSONResponse(content=jsonable_encoder({'items': data, 'total': len(data)}))
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        return JSONResponse({'items': [], 'error': str(e), 'detail': error_detail}, status_code=500)
+
+
+# ============================================================================
+# MINI MÓDULO: AGREGAR PROGRAMAS EN CATÁLOGO
+# ============================================================================
+
+def _read_excel_agregar_programas(content: bytes) -> pd.DataFrame:
+    """Lee un archivo Excel con códigos prf_codigo"""
+    try:
+        df = pd.read_excel(io.BytesIO(content), sheet_name=0, dtype=str)
+        return df
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Error al leer el archivo Excel: {str(e)}'
+        )
+
+
+async def _process_agregar_programas(df: pd.DataFrame, tipo_programa: str):
+    """Procesa el DataFrame de códigos y actualiza catalogo"""
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene filas')
+
+    # Validar que tipo_programa sea válido
+    valid_tipos = ['Construcción FEC', 'Transformación FEC', 'FEP']
+    if tipo_programa not in valid_tipos:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Tipo de programa inválido. Debe ser: {", ".join(valid_tipos)}'
+        )
+
+    # Normalizar nombres de columnas
+    df.columns = [str(col).lower().strip().replace(' ', '_').replace('-', '_') for col in df.columns]
+
+    # Buscar columna con código (puede ser: prf_codigo, codigo, codigo_programa, etc.)
+    codigo_col = None
+    for col in df.columns:
+        if 'codigo' in col or 'prf' in col or 'code' in col:
+            codigo_col = col
+            break
+
+    if not codigo_col:
+        raise HTTPException(
+            status_code=400,
+            detail='No se encontró columna de código. Esperaba una columna con "código" o "prf_codigo" en el nombre'
+        )
+
+    # Extraer códigos únicos
+    codigos = df[codigo_col].dropna().astype(str).str.strip()
+    codigos = codigos[codigos != ''].unique().tolist()
+
+    if not codigos:
+        raise HTTPException(status_code=400, detail='No hay códigos válidos en el archivo Excel')
+
+    try:
+        with engine.connect() as conn:
+            updated_count = 0
+            not_found_count = 0
+
+            for codigo in codigos:
+                try:
+                    codigo_int = int(float(codigo))
+                except (ValueError, TypeError):
+                    not_found_count += 1
+                    continue
+
+                # Buscar en catalogo
+                check_sql = text("""
+                    SELECT prf_codigo FROM catalogo 
+                    WHERE prf_codigo = :codigo
+                    LIMIT 1
+                """)
+
+                result = conn.execute(check_sql, {'codigo': codigo_int}).fetchone()
+
+                if result:
+                    # Actualizar el registro
+                    update_sql = text("""
+                        UPDATE catalogo 
+                        SET tipo_programa = :tipo_programa
+                        WHERE prf_codigo = :codigo
+                    """)
+
+                    conn.execute(update_sql, {
+                        'tipo_programa': tipo_programa,
+                        'codigo': codigo_int
+                    })
+                    updated_count += 1
+                else:
+                    not_found_count += 1
+
+            conn.commit()
+
+        return {
+            'status': 'success',
+            'message': f'Procesados {len(codigos)} códigos',
+            'updated': updated_count,
+            'not_found': not_found_count,
+            'tipo_programa': tipo_programa
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Error al guardar en base de datos: {str(e)}'
+        )
+
+
+@app.post('/catalogo/agregar-programas')
+async def agregar_programas_catalogo(
+    file: UploadFile = File(...),
+    tipo_programa: str = Form(...)
+):
+    """Sube un Excel con códigos y marca los programas con el tipo seleccionado."""
+    if not file.filename.lower().endswith(('.xls', '.xlsx')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+
+    content = await file.read()
+
+    try:
+        df = _read_excel_agregar_programas(content)
+        result = await _process_agregar_programas(df, tipo_programa)
+        return JSONResponse(result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al procesar archivo: {str(e)}')
+
+
+@app.get('/catalogo/programas-por-tipo')
+async def get_programas_por_tipo(tipo_programa: Optional[str] = None):
+    """Obtiene programas filtrados por tipo_programa."""
+    try:
+        with engine.connect() as conn:
+            if tipo_programa:
+                result = conn.execute(text("""
+                    SELECT 
+                        prf_codigo,
+                        cod_ver,
+                        prf_denominacion,
+                        nivel_de_formacion,
+                        tipo_programa
+                    FROM catalogo
+                    WHERE tipo_programa = :tipo_programa
+                    ORDER BY prf_codigo
+                    LIMIT 5000
+                """), {'tipo_programa': tipo_programa})
+            else:
+                result = conn.execute(text("""
+                    SELECT 
+                        prf_codigo,
+                        cod_ver,
+                        prf_denominacion,
+                        nivel_de_formacion,
+                        tipo_programa
+                    FROM catalogo
+                    WHERE tipo_programa IS NOT NULL
+                    ORDER BY tipo_programa, prf_codigo
+                    LIMIT 5000
+                """))
+
+            rows = result.fetchall()
+            data = [dict(row._mapping) for row in rows]
+            
+            return JSONResponse(content=jsonable_encoder({
+                'items': data,
+                'total': len(data),
+                'tipo_programa': tipo_programa or 'Todos'
+            }))
+
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        return JSONResponse(
+            {'items': [], 'error': str(e), 'detail': error_detail},
+            status_code=500
+        )
+
+
+# ===== ENDPOINTS DE EXPORTACIÓN A EXCEL =====
+
+def _export_table_to_excel(table_name: str, output_filename: str) -> StreamingResponse:
+    """
+    Función genérica para exportar cualquier tabla a Excel
+    - Verde oscuro en encabezados
+    - Remueve columna fecha_corte de los datos
+    - Pone fecha de corte en B1 (si existe)
+    - Oculta columna fecha_corte si hay múltiples fechas
+    """
+    try:
+        sql = f'SELECT * FROM {table_name}'
+        
+        df = pd.read_sql(text(sql), con=engine)
+        
+        if df.empty:
+            df = pd.DataFrame()
+        
+        # Detectar si existe columna fecha_corte y obtener información
+        fecha_corte_value = None
+        tiene_multiples_fechas = False
+        
+        if 'fecha_corte' in df.columns and not df.empty:
+            fechas_unicas = df['fecha_corte'].dropna().unique()
+            if len(fechas_unicas) > 1:
+                tiene_multiples_fechas = True
+            elif len(fechas_unicas) == 1:
+                fecha_corte_value = str(fechas_unicas[0])
+        
+        # Remover columna fecha_corte de los datos si no hay múltiples fechas
+        if 'fecha_corte' in df.columns and not tiene_multiples_fechas:
+            df = df.drop('fecha_corte', axis=1)
+        elif 'fecha_corte' in df.columns and tiene_multiples_fechas:
+            # Mantener la columna pero la ocultaremos después
+            pass
+        
+        # Convertir columnas datetime a string para mejor manejo en Excel
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                try:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    pass
+        
+        # Crear archivo Excel en memoria
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Escribir datos comenzando desde fila 3 (para dejar espacio para fecha de corte)
+            if fecha_corte_value:
+                df.to_excel(writer, sheet_name='Datos', index=False, startrow=2)
+            else:
+                df.to_excel(writer, sheet_name='Datos', index=False)
+            
+            # Dar formato a la hoja
+            workbook = writer.book
+            worksheet = writer.sheets['Datos']
+            
+            # Agregar fecha de corte en B1 si existe
+            if fecha_corte_value:
+                worksheet['A1'] = 'Fecha de corte'
+                worksheet['B1'] = fecha_corte_value
+                worksheet['A1'].font = Font(bold=True, size=11)
+                worksheet['B1'].font = Font(size=11)
+            
+            # Verde success de Bootstrap (color institucional)
+            green_success = "198754"  # Bootstrap success color
+            
+            # Formatear encabezados (fila 3 si hay fecha_corte, fila 1 si no)
+            header_row = 3 if fecha_corte_value else 1
+            for cell in worksheet[header_row]:
+                if cell.value:
+                    cell.font = Font(bold=True, color="FFFFFF", size=11)
+                    cell.fill = PatternFill(start_color=green_success, end_color=green_success, fill_type="solid")
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            
+            # Ajustar ancho de columnas
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if cell.value:
+                            max_length = max(max_length, len(str(cell.value)))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Ocultar columna fecha_corte si hay múltiples fechas
+            if tiene_multiples_fechas and 'fecha_corte' in df.columns:
+                # Encontrar el índice de la columna fecha_corte
+                fecha_corte_col_index = list(df.columns).index('fecha_corte')
+                col_letter = get_column_letter(fecha_corte_col_index + 1)
+                worksheet.column_dimensions[col_letter].hidden = True
+        
+        output.seek(0)
+        
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename="{output_filename}"'}
+        )
+    
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f'Error exportando {table_name}: {str(e)}\n{traceback.format_exc()}')
+
+
+@app.get('/catalogo/exportar-excel')
+def export_catalogo():
+    """Exportar tabla catalogo a Excel"""
+    return _export_table_to_excel('catalogo', 'catalogo.xlsx')
+
+
+@app.get('/registro-calificado/exportar-excel')
+def export_registro_calificado():
+    """Exportar tabla registro_calificado_presencial a Excel"""
+    return _export_table_to_excel('registro_calificado_presencial', 'registro_calificado_presencial.xlsx')
+
+
+@app.get('/oferta/exportar-excel')
+def export_oferta():
+    """Exportar tabla OFERTA_seguimiento_metas a Excel"""
+    return _export_table_to_excel('OFERTA_seguimiento_metas', 'oferta_seguimiento_metas.xlsx')
+
+
+@app.get('/consolidado-colegios/exportar-excel')
+def export_consolidado_colegios():
+    """Exportar tabla consolidado_colegios a Excel"""
+    return _export_table_to_excel('consolidado_colegios', 'consolidado_colegios.xlsx')
 
 

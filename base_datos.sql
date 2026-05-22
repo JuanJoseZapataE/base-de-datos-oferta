@@ -126,10 +126,12 @@ CREATE TABLE IF NOT EXISTS `catalogo` (
     `indice` INT NULL,
     `ocupacion` VARCHAR(255) NULL,
     `fecha_corte` DATE NULL,
+    `tipo_programa` VARCHAR(100) NULL,
     UNIQUE KEY `uk_catalogo_codigo_version` (`prf_codigo`, `prf_version`),
     INDEX `idx_catalogo_fecha_corte` (`fecha_corte`),
     INDEX `idx_catalogo_codigo` (`prf_codigo`),
-    INDEX `idx_catalogo_version` (`prf_version`)
+    INDEX `idx_catalogo_version` (`prf_version`),
+    INDEX `idx_catalogo_tipo_programa` (`tipo_programa`)
 );
 
 
@@ -211,4 +213,16 @@ CREATE TABLE IF NOT EXISTS `OFERTA_seguimiento_metas` (
     INDEX `idx_oferta_municipio` (`municipio`),
     INDEX `idx_oferta_verificado` (`verificado`),
     INDEX `idx_oferta_fecha_inicio` (`fecha_inicio`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabla para Consolidado Colegios (Submódulo de Seguimiento Metas)
+CREATE TABLE IF NOT EXISTS `consolidado_colegios` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `nombre_real_institucion` VARCHAR(255) NULL,
+    `nombres_sofia_plus` VARCHAR(255) NULL,
+    `municipio` VARCHAR(100) NULL,
+    `clasificacion` VARCHAR(100) NULL,
+    `fecha_registro` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_consolidado_municipio` (`municipio`),
+    INDEX `idx_consolidado_fecha_registro` (`fecha_registro`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
