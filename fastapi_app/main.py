@@ -4681,3 +4681,558 @@ def export_consolidado_colegios():
     return _export_table_to_excel('consolidado_colegios', 'consolidado_colegios.xlsx')
 
 
+# ============================================================================
+# MINI MÓDULO: PE_04 SEGUIMIENTO DE METAS
+# ============================================================================
+
+def _read_excel_pe04(content: bytes) -> pd.DataFrame:
+    """Lee un archivo Excel PE_04 de programas de formación con encabezados en fila 2"""
+    try:
+        # header=1 significa que los encabezados están en la fila 2 (índice 1, basado en 0)
+        df = pd.read_excel(io.BytesIO(content), sheet_name=0, header=1, dtype=str)
+        return df
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Error al leer el archivo Excel: {str(e)}'
+        )
+
+
+def _normalize_col_name_pe04(col_name: str) -> str:
+    """Normaliza nombres de columna para búsqueda flexible"""
+    text = str(col_name).lower().strip()
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+    text = text.replace(' ', '_').replace('-', '_')
+    return text
+
+
+def _clasificar_programa_especial(nombre_programa_especial: str, nombre_convenio: str) -> str:
+    """
+    Clasifica los programas según la fórmula compleja del Excel PE_04
+    Retorna: SENATEC, ACME, SER CAMPESENA, SER, BILINGUISMO, CAMPESENA, ECONOMIA POPULAR, 
+             CAMPESENA RADIAL, FIC, o NA
+    """
+    if not nombre_programa_especial:
+        nombre_programa_especial = ""
+    if not nombre_convenio:
+        nombre_convenio = ""
+    
+    nombre_programa_especial = str(nombre_programa_especial).strip().upper()
+    nombre_convenio = str(nombre_convenio).strip().upper()
+    
+    # 1. SENATEC
+    if nombre_programa_especial == "SENATEC":
+        return "SENATEC"
+    
+    # 2. ACME
+    if nombre_programa_especial in ["INTEGRACIÓN CON LA EDUCACIÓN MEDIA ACADÉMICA", 
+                                     "INTEGRACIÓN CON LA EDUCACIÓN MEDIA TÉCNICA"]:
+        return "ACME"
+    
+    # 3. SER CAMPESENA
+    acuerdo_campesena = "ACUERDO NO. 0003 DE 2023  POR EL CUAL SE CREA LA ESTRATEGIA CAMPE-SENA" in nombre_convenio or \
+                        "ACUERDO NO. 0003 DE 2023 POR EL CUAL SE CREA LA ESTRATEGIA CAMPE-SENA" in nombre_convenio
+    
+    if nombre_programa_especial == "CAMPESENA- SER":
+        return "SER CAMPESENA"
+    
+    if nombre_programa_especial == "SER" and acuerdo_campesena:
+        return "SER CAMPESENA"
+    
+    # 4. SER
+    if nombre_programa_especial == "SER":
+        return "SER"
+    
+    # 5. BILINGUISMO
+    if nombre_programa_especial == "PROGRAMA DE BILINGUISMO":
+        return "BILINGUISMO"
+    
+    # 6. CAMPESENA
+    campesena_keywords = ["CAMPESENA- AULA MÓVIL", "CAMPESENA", "FORMACIÓN CONTINUA ESPECIAL CAMPESINA"]
+    if acuerdo_campesena or any(kw in nombre_programa_especial for kw in campesena_keywords):
+        return "CAMPESENA"
+    
+    # 7. ECONOMIA POPULAR
+    economia_keywords = ["FULL POPULAR  FORMACIÓN CONTINUA ESPECIAL POPULAR", 
+                        "ECONOMIA POPULAR- AULA MÓVIL", "FULL POPULAR"]
+    economia_convenio = "ECONOMÍA POPULAR - PND - SENA" in nombre_convenio
+    if any(kw in nombre_programa_especial for kw in economia_keywords) or economia_convenio:
+        return "ECONOMIA POPULAR"
+    
+    # 8. CAMPESENA RADIAL
+    if nombre_programa_especial == "CAMPESENA RADIAL":
+        return "CAMPESENA RADIAL"
+    
+    # 9. FIC
+    if "CURSOS FIC" in nombre_convenio:
+        return "FIC"
+    
+    # 10. NA (default)
+    return "NA"
+
+
+async def _process_pe04(df: pd.DataFrame):
+    """Procesa el DataFrame PE_04 e inserta en programas_formacion_seguimiento_pe04"""
+    if df.empty:
+        raise HTTPException(status_code=400, detail='El Excel no contiene filas')
+
+    # Mapear directamente los encabezados reales del Excel a nombres de columnas de la tabla
+    # Esto es más robusto que normalizar ya que los encabezados pueden variar
+    column_mapping_excel_to_db = {
+        'NOMBRE_CENTRO': 'centro_formacion',
+        'IDENTIFICADOR_FICHA': 'numero_ficha',
+        'NOMBRE_MUNICIPIO_CURSO': 'ciudad_municipio',
+        'FECHA_INICIO_FICHA': 'fecha_inicio',
+        'FECHA_TERMINACION_FICHA': 'fecha_fin',
+        'NIVEL_FORMACION': 'nivel_formacion',
+        'NOMBRE_PROGRAMA_FORMACION': 'denominacion_programa',
+        'NOMBRE_SECTOR_PROGRAMA': 'estrategia_programa',
+        'NOMBRE_CONVENIO': 'convenio',
+        'NUMERO_CURSOS': 'cupos',
+        'TOTAL_APRENDICES_ACTIVOS': 'aprendices_activos',
+        'TIPO_DE_FORMACION': 'tipo_formacion',
+        'MODALIDAD_FORMACION': 'modalidad_formacion',
+        'ESTADO_CURSO': 'estado_curso',
+    }
+
+    # Crear nuevo DataFrame con solo las columnas que necesitamos
+    df_mapped = pd.DataFrame()
+    
+    for excel_col, db_col in column_mapping_excel_to_db.items():
+        if excel_col in df.columns:
+            df_mapped[db_col] = df[excel_col]
+        else:
+            # Si la columna no existe, crear columna vacía
+            df_mapped[db_col] = None
+    
+    # Agregar certificado y fecha_corte como columnas vacías (no existen en el Excel)
+    df_mapped['certificado'] = None
+    df_mapped['fecha_corte'] = None
+    
+    # Agregar clasificación de programa especial basada en los datos del Excel
+    # Obtener NOMBRE_PROGRAMA_ESPECIAL del DataFrame original si existe
+    nombre_programa_especial_col = [col for col in df.columns if 'NOMBRE_PROGRAMA_ESPECIAL' in col]
+    
+    if nombre_programa_especial_col:
+        programa_especial_data = df[nombre_programa_especial_col[0]]
+    else:
+        programa_especial_data = [None] * len(df)
+    
+    # Aplicar clasificación a cada fila
+    df_mapped['clasificacion_programa_especial'] = [
+        _clasificar_programa_especial(
+            programa_especial_data.iloc[i] if i < len(programa_especial_data) else None,
+            df_mapped['convenio'].iloc[i] if i < len(df_mapped) else None
+        )
+        for i in range(len(df_mapped))
+    ]
+
+    # Limpiar datos
+    def clean_value(val, col_type='text'):
+        if pd.isna(val) or val is None or val == '':
+            return None
+        if col_type in ['date']:
+            try:
+                from datetime import datetime
+                if isinstance(val, datetime):
+                    return val.date()
+                elif isinstance(val, str):
+                    # Intentar varios formatos de fecha
+                    for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d']:
+                        try:
+                            return datetime.strptime(val.strip(), fmt).date()
+                        except:
+                            pass
+                    return None
+                else:
+                    # Si es un número (Excel almacena fechas como números)
+                    try:
+                        from datetime import datetime, timedelta
+                        base_date = datetime(1899, 12, 30)  # Excel epoch
+                        return (base_date + timedelta(days=float(val))).date()
+                    except:
+                        return None
+            except:
+                return None
+        elif col_type in ['int']:
+            try:
+                return int(float(str(val)))
+            except:
+                return None
+        else:
+            text = str(val).strip()
+            return text if text else None
+
+    # Aplicar limpieza específica por tipo de columna
+    date_cols = ['fecha_inicio', 'fecha_fin', 'fecha_corte']
+    int_cols = ['numero_ficha', 'cupos', 'aprendices_activos']
+    
+    for col in df_mapped.columns:
+        if col in date_cols:
+            df_mapped[col] = df_mapped[col].apply(lambda x: clean_value(x, 'date'))
+        elif col in int_cols:
+            df_mapped[col] = df_mapped[col].apply(lambda x: clean_value(x, 'int'))
+        else:
+            df_mapped[col] = df_mapped[col].apply(lambda x: clean_value(x, 'text'))
+
+    # Convertir NaN a None
+    df_mapped = df_mapped.where(pd.notna(df_mapped), None)
+
+    # Eliminar filas completamente vacías
+    df_mapped = df_mapped.dropna(how='all').reset_index(drop=True)
+    if df_mapped.empty:
+        raise HTTPException(status_code=400, detail='No hay registros válidos después de validar')
+
+    try:
+        with engine.connect() as conn:
+            # Primero, limpiar la tabla (solo lectura, así que cada carga reemplaza)
+            conn.execute(text('DELETE FROM programas_formacion_seguimiento_pe04'))
+            conn.commit()
+
+            inserted_count = 0
+            for idx, row in df_mapped.iterrows():
+                values = {}
+                for col in df_mapped.columns:
+                    val = row[col]
+                    if pd.isna(val):
+                        values[col] = None
+                    elif isinstance(val, (int, float)):
+                        values[col] = val
+                    elif col in date_cols:
+                        values[col] = val
+                    else:
+                        values[col] = str(val).strip() if val else None
+
+                cols = list(values.keys())
+                col_names = ', '.join([f'`{c}`' for c in cols])
+                placeholders = ', '.join([f':{c}' for c in cols])
+
+                insert_sql = f"""
+                INSERT INTO programas_formacion_seguimiento_pe04 ({col_names})
+                VALUES ({placeholders})
+                """
+
+                try:
+                    conn.execute(text(insert_sql), values)
+                    inserted_count += 1
+                except Exception as row_error:
+                    print(f"Error insertando fila {idx}: {row_error}")
+                    print(f"Valores: {values}")
+
+            conn.commit()
+
+        return {
+            'status': 'success',
+            'message': f'Se cargaron {inserted_count} registros PE_04 correctamente',
+            'inserted': inserted_count
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Error al guardar en base de datos: {str(e)}'
+        )
+
+
+@app.post('/pe04-seguimiento/upload-excel')
+async def upload_pe04_excel(file: UploadFile = File(...)):
+    """Sube un archivo Excel PE_04 (Seguimiento de Metas)."""
+    if not file.filename.lower().endswith(('.xls', '.xlsx')):
+        raise HTTPException(status_code=400, detail='El archivo debe ser .xls o .xlsx')
+
+    content = await file.read()
+
+    try:
+        df = _read_excel_pe04(content)
+        result = await _process_pe04(df)
+        return JSONResponse(result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al procesar archivo: {str(e)}')
+
+
+@app.get('/pe04-seguimiento/data')
+async def get_pe04_data():
+    """Obtiene los datos cargados de PE_04 (Seguimiento de Metas)."""
+    try:
+        with engine.connect() as conn:
+            # Verificar si la tabla existe
+            check_table_sql = """
+            SELECT COUNT(*) as count
+            FROM information_schema.TABLES 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'programas_formacion_seguimiento_pe04'
+            """
+            table_exists = conn.execute(text(check_table_sql)).fetchone()
+
+            if not table_exists or table_exists[0] == 0:
+                return JSONResponse({'items': [], 'total': 0, 'message': 'Tabla no existe aún'})
+
+            # Obtener TODOS los datos de la tabla
+            result = conn.execute(text("""
+                SELECT 
+                    id,
+                    centro_formacion,
+                    numero_ficha,
+                    ciudad_municipio,
+                    fecha_inicio,
+                    fecha_fin,
+                    nivel_formacion,
+                    denominacion_programa,
+                    estrategia_programa,
+                    convenio,
+                    cupos,
+                    aprendices_activos,
+                    certificado,
+                    tipo_formacion,
+                    modalidad_formacion,
+                    estado_curso,
+                    fecha_corte,
+                    clasificacion_programa_especial,
+                    fecha_carga
+                FROM programas_formacion_seguimiento_pe04
+                ORDER BY fecha_carga DESC
+                LIMIT 10000
+            """))
+            rows = result.fetchall()
+            data = []
+            for row in rows:
+                row_dict = dict(row._mapping)
+                # Convertir fechas a ISO format string
+                for key in list(row_dict.keys()):
+                    val = row_dict[key]
+                    if val is not None and hasattr(val, 'isoformat'):
+                        row_dict[key] = val.isoformat()
+                data.append(row_dict)
+
+            return JSONResponse(content=jsonable_encoder({'items': data, 'total': len(data)}))
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        return JSONResponse({'items': [], 'error': str(e), 'detail': error_detail}, status_code=500)
+
+
+@app.get('/pe04-seguimiento/exportar-excel')
+def export_pe04():
+    """Exportar tabla programas_formacion_seguimiento_pe04 a Excel"""
+    return _export_table_to_excel('programas_formacion_seguimiento_pe04', 'pe04_seguimiento.xlsx')
+
+
+@app.get('/pe04-seguimiento/resumen-modalidades')
+async def get_pe04_resumen_modalidades(centro: str = None):
+    """Resumen de PRESENCIAL, VIRTUAL, A DISTANCIA (excluye ECONOMIA POPULAR, FIC, CAMPESENA):
+    - NIVEL_FORMACION = 'TECNÓLOGO'
+    - Fichas que pasan 2026 (fecha_fin > 2025-12-31)
+    - Parámetro opcional: ?centro=nombre_centro
+    """
+    try:
+        with engine.connect() as conn:
+            query = """
+            SELECT 
+                centro_formacion,
+                modalidad_formacion,
+                clasificacion_programa_especial,
+                COUNT(DISTINCT numero_ficha) as total_fichas,
+                COALESCE(SUM(aprendices_activos), 0) as total_aprendices
+            FROM programas_formacion_seguimiento_pe04
+            WHERE TRIM(UPPER(nivel_formacion)) = 'TECNOLOGO'
+              AND fecha_fin > '2025-12-31'
+              AND clasificacion_programa_especial NOT IN ('ECONOMIA POPULAR', 'FIC', 'CAMPESENA')
+            """
+            
+            if centro:
+                query += f" AND centro_formacion = '{centro}'"
+            
+            query += """
+            GROUP BY centro_formacion, modalidad_formacion, clasificacion_programa_especial
+            ORDER BY centro_formacion ASC, modalidad_formacion ASC, total_aprendices DESC
+            """
+            
+            result = conn.execute(text(query))
+            rows = result.fetchall()
+            
+            data = []
+            total_general = 0
+            for row in rows:
+                row_dict = dict(row._mapping)
+                total_general += row_dict.get('total_aprendices', 0)
+                data.append(row_dict)
+            
+            # Obtener lista de centros disponibles
+            centros_result = conn.execute(text("""
+                SELECT DISTINCT centro_formacion
+                FROM programas_formacion_seguimiento_pe04
+                WHERE TRIM(UPPER(nivel_formacion)) = 'TECNOLOGO'
+                  AND fecha_fin > '2025-12-31'
+                  AND clasificacion_programa_especial NOT IN ('ECONOMIA POPULAR', 'FIC', 'CAMPESENA')
+                ORDER BY centro_formacion ASC
+            """))
+            centros = [row[0] for row in centros_result.fetchall()]
+            
+            return JSONResponse(content=jsonable_encoder({
+                'items': data, 
+                'total': len(data),
+                'total_aprendices': total_general,
+                'centros_disponibles': centros,
+                'centro_seleccionado': centro
+            }))
+    
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        return JSONResponse({'items': [], 'error': str(e), 'detail': error_detail}, status_code=500)
+
+
+@app.get('/pe04-seguimiento/resumen-especiales')
+async def get_pe04_resumen_especiales(centro: str = None):
+    """Resumen de ECONOMIA POPULAR, FIC, CAMPESENA (sin agrupar por modalidad):
+    - NIVEL_FORMACION = 'TECNÓLOGO'
+    - Fichas que pasan 2026 (fecha_fin > 2025-12-31)
+    - Parámetro opcional: ?centro=nombre_centro
+    """
+    try:
+        with engine.connect() as conn:
+            query = """
+            SELECT 
+                centro_formacion,
+                clasificacion_programa_especial,
+                COUNT(DISTINCT numero_ficha) as total_fichas,
+                COALESCE(SUM(aprendices_activos), 0) as total_aprendices
+            FROM programas_formacion_seguimiento_pe04
+            WHERE TRIM(UPPER(nivel_formacion)) = 'TECNOLOGO'
+              AND fecha_fin > '2025-12-31'
+              AND clasificacion_programa_especial IN ('ECONOMIA POPULAR', 'FIC', 'CAMPESENA')
+            """
+            
+            if centro:
+                query += f" AND centro_formacion = '{centro}'"
+            
+            query += """
+            GROUP BY centro_formacion, clasificacion_programa_especial
+            ORDER BY centro_formacion ASC, total_aprendices DESC
+            """
+            
+            result = conn.execute(text(query))
+            rows = result.fetchall()
+            
+            data = []
+            total_general = 0
+            for row in rows:
+                row_dict = dict(row._mapping)
+                total_general += row_dict.get('total_aprendices', 0)
+                data.append(row_dict)
+            
+            # Obtener lista de centros disponibles
+            centros_result = conn.execute(text("""
+                SELECT DISTINCT centro_formacion
+                FROM programas_formacion_seguimiento_pe04
+                WHERE TRIM(UPPER(nivel_formacion)) = 'TECNOLOGO'
+                  AND fecha_fin > '2025-12-31'
+                  AND clasificacion_programa_especial IN ('ECONOMIA POPULAR', 'FIC', 'CAMPESENA')
+                ORDER BY centro_formacion ASC
+            """))
+            centros = [row[0] for row in centros_result.fetchall()]
+            
+            return JSONResponse(content=jsonable_encoder({
+                'items': data, 
+                'total': len(data),
+                'total_aprendices': total_general,
+                'centros_disponibles': centros,
+                'centro_seleccionado': centro
+            }))
+    
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        return JSONResponse({'items': [], 'error': str(e), 'detail': error_detail}, status_code=500)
+
+
+@app.get('/pe04-seguimiento/debug-filtros')
+async def debug_filtros():
+    """Debug endpoint para ver qué valores existen en la tabla PE_04"""
+    try:
+        with engine.connect() as conn:
+            debug_data = {
+                'total_registros': 0,
+                'niveles_formacion': [],
+                'tipos_formacion': [],
+                'fechas_rango': {},
+                'fichas_pasan_2026': 0,
+                'fichas_tecnologos': 0,
+                'fichas_presencial': 0,
+                'fichas_todas_condiciones': 0,
+                'ejemplo_registros_todas_condiciones': []
+            }
+            
+            # Total registros
+            result = conn.execute(text("SELECT COUNT(*) as cnt FROM programas_formacion_seguimiento_pe04"))
+            debug_data['total_registros'] = result.fetchone()[0]
+            
+            # Niveles únicos
+            result = conn.execute(text("SELECT DISTINCT nivel_formacion FROM programas_formacion_seguimiento_pe04 WHERE nivel_formacion IS NOT NULL"))
+            debug_data['niveles_formacion'] = [row[0] for row in result.fetchall()]
+            
+            # Tipos únicos
+            result = conn.execute(text("SELECT DISTINCT tipo_formacion FROM programas_formacion_seguimiento_pe04 WHERE tipo_formacion IS NOT NULL"))
+            debug_data['tipos_formacion'] = [row[0] for row in result.fetchall()]
+            
+            # Rango de fechas
+            result = conn.execute(text("SELECT MIN(fecha_fin) as min_fecha, MAX(fecha_fin) as max_fecha FROM programas_formacion_seguimiento_pe04"))
+            row = result.fetchone()
+            if row[0]:
+                debug_data['fechas_rango'] = {
+                    'min': row[0].isoformat() if hasattr(row[0], 'isoformat') else str(row[0]),
+                    'max': row[1].isoformat() if hasattr(row[1], 'isoformat') else str(row[1])
+                }
+            
+            # Fichas pasan 2026
+            result = conn.execute(text("SELECT COUNT(*) as cnt FROM programas_formacion_seguimiento_pe04 WHERE fecha_fin > '2025-12-31'"))
+            debug_data['fichas_pasan_2026'] = result.fetchone()[0]
+            
+            # Fichas TECNÓLOGO
+            result = conn.execute(text("SELECT COUNT(*) as cnt FROM programas_formacion_seguimiento_pe04 WHERE nivel_formacion = 'TECNÓLOGO'"))
+            debug_data['fichas_tecnologos'] = result.fetchone()[0]
+            
+            # Fichas PRESENCIAL
+            result = conn.execute(text("SELECT COUNT(*) as cnt FROM programas_formacion_seguimiento_pe04 WHERE tipo_formacion = 'PRESENCIAL'"))
+            debug_data['fichas_presencial'] = result.fetchone()[0]
+            
+            # Fichas que cumplen TODAS las condiciones
+            result = conn.execute(text("""
+                SELECT COUNT(*) as cnt 
+                FROM programas_formacion_seguimiento_pe04 
+                WHERE nivel_formacion = 'TECNÓLOGO'
+                  AND tipo_formacion = 'PRESENCIAL'
+                  AND fecha_fin > '2025-12-31'
+            """))
+            debug_data['fichas_todas_condiciones'] = result.fetchone()[0]
+            
+            # Ejemplos de registros que cumplen todas las condiciones
+            result = conn.execute(text("""
+                SELECT numero_ficha, centro_formacion, nivel_formacion, tipo_formacion, fecha_fin, clasificacion_programa_especial, aprendices_activos
+                FROM programas_formacion_seguimiento_pe04 
+                WHERE nivel_formacion = 'TECNÓLOGO'
+                  AND tipo_formacion = 'PRESENCIAL'
+                  AND fecha_fin > '2025-12-31'
+                LIMIT 5
+            """))
+            debug_data['ejemplo_registros_todas_condiciones'] = [
+                {
+                    'numero_ficha': row[0],
+                    'centro': row[1],
+                    'nivel': row[2],
+                    'tipo': row[3],
+                    'fecha_fin': row[4].isoformat() if hasattr(row[4], 'isoformat') else str(row[4]),
+                    'clasificacion': row[5],
+                    'aprendices': row[6]
+                }
+                for row in result.fetchall()
+            ]
+            
+            return JSONResponse(content=debug_data)
+    
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        return JSONResponse({'error': str(e), 'detail': error_detail}, status_code=500)

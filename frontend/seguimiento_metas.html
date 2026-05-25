@@ -133,6 +133,23 @@
       body.dark-mode .table-catalog tbody td {
         color: #f2fff6;
       }
+      /* Colores personalizados para clasificación de programas */
+      .bg-olive {
+        background-color: #6d8c52 !important;
+        color: #ffffff !important;
+      }
+      .bg-purple {
+        background-color: #9966cc !important;
+        color: #ffffff !important;
+      }
+      .bg-teal {
+        background-color: #17a2a2 !important;
+        color: #ffffff !important;
+      }
+      .bg-pink {
+        background-color: #e85d75 !important;
+        color: #ffffff !important;
+      }
     </style>
   </head>
   <body>
@@ -182,6 +199,7 @@
             <button id="toggleRegistroSection" class="nav-link" type="button" aria-pressed="false">📝 Registro Calificado</button>
             <button id="toggleOfertaSection" class="nav-link" type="button" aria-pressed="false">💼 OFERTA</button>
             <button id="toggleConsolidadoSection" class="nav-link" type="button" aria-pressed="false">🏫 Consolidado Colegios</button>
+            <button id="togglePe04Section" class="nav-link" type="button" aria-pressed="false">📥 PE_04</button>
           </div>
         </div>
       </nav>
@@ -281,7 +299,7 @@
           </div>
         </div>
 
-        <div class="row g-3">
+        <div class="row g-3 mt-3">
           <div class="col-12">
             <div class="card panel-card p-3">
               <div id="catalogoTableContainer" class="table-responsive" style="max-height: 62vh;">
@@ -599,6 +617,93 @@
         </div>
       </div>
 
+      <!-- ===== SECCIÓN PE_04 ===== -->
+      <div id="pe04Section" style="display: none;">
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">Subir PE_04 (Solo Lectura)</h5>
+                  <p class="text-muted mb-0">Carga el archivo PE_04 de ejecución de formación</p>
+                </div>
+                <span class="badge text-bg-success">PE_04</span>
+              </div>
+
+              <label class="form-label">Archivo Excel</label>
+              <input id="pe04File" type="file" class="form-control mb-3" accept=".xls,.xlsx">
+
+              <div class="d-flex gap-2 flex-wrap">
+                <button id="uploadPe04Btn" class="btn btn-success">Subir Excel</button>
+                <button id="reloadPe04Btn" class="btn btn-outline-secondary">Actualizar tabla</button>
+              </div>
+
+              <div id="pe04Status" class="mt-3 small"></div>
+              <div id="pe04ProgressContainer" class="progress mt-3" style="height:6px; display:none;">
+                <div id="pe04ProgressBar" class="progress-bar bg-success" role="progressbar" style="width:0%;" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="card panel-card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                  <h5 class="mb-1">PE_04 Cargado</h5>
+                  <p class="text-muted mb-0">Registros totales: <strong id="pe04Total">0</strong></p>
+                </div>
+              </div>
+
+              <div class="row g-2">
+                <div class="col-6 d-grid">
+                  <button id="togglePe04TableBtn" class="btn btn-success btn-sm" type="button">Mostrar tabla</button>
+                </div>
+                <div class="col-6 d-grid">
+                  <button id="exportPe04Btn" class="btn btn-info btn-sm" type="button">Exportar Excel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="card panel-card p-3">
+              <div id="pe04TableContainer" class="table-responsive" style="max-height: 70vh; display:none;">
+                <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                  <thead class="sticky-top">
+                    <tr>
+                      <th style="min-width: 50px;">ID</th>
+                      <th style="min-width: 150px;">Centro Formación</th>
+                      <th style="min-width: 120px;">Clasificación</th>
+                      <th style="min-width: 80px;">Ficha</th>
+                      <th style="min-width: 120px;">Municipio</th>
+                      <th style="min-width: 100px;">F. Inicio</th>
+                      <th style="min-width: 100px;">F. Fin</th>
+                      <th style="min-width: 100px;">Nivel Formación</th>
+                      <th style="min-width: 200px;">Denominación</th>
+                      <th style="min-width: 120px;">Estrategia</th>
+                      <th style="min-width: 100px;">Convenio</th>
+                      <th style="min-width: 70px;">Cupos</th>
+                      <th style="min-width: 80px;">Aprendices</th>
+                      <th style="min-width: 120px;">Certificado</th>
+                      <th style="min-width: 100px;">Tipo Formación</th>
+                      <th style="min-width: 120px;">Modalidad Formación</th>
+                      <th style="min-width: 100px;">Estado</th>
+                      <th style="min-width: 100px;">F. Corte</th>
+                      <th style="min-width: 120px;">F. Carga</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pe04TableBody">
+                    <tr><td colspan="18" class="text-center text-muted py-4">Sin registros</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ===== NUEVA SECCIÓN: SEGUIMIENTO A LAS METAS ===== -->
       <div id="seguimientoMetasModuleSection" style="display: none;">
         <div class="row g-3 mb-3">
@@ -701,6 +806,78 @@
                           </thead>
                           <tbody id="seguimientoMetasTableBody">
                             <tr><td colspan="8" class="text-center text-muted py-4">Sin registros</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel: Aprendices por Ficha (Fecha Fin >= 2026) -->
+              <div class="row g-3 mt-4">
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                          <h6 class="mb-1">Aprendices PRESENCIAL, VIRTUAL, A DISTANCIA</h6>
+                          <p class="text-muted small mb-0">Filtros: Nivel=TECNÓLOGO | Fichas que pasan 2026+ | Total: <strong id="totalModalidades">0</strong></p>
+                        </div>
+                        <div class="d-flex gap-2">
+                          <select id="filtroModalidadesCentro" class="form-select form-select-sm" style="max-width: 250px;">
+                            <option value="">-- Todos los centros --</option>
+                          </select>
+                          <button id="toggleModalidadesBtn" class="btn btn-sm btn-success" type="button">Mostrar Tabla</button>
+                        </div>
+                      </div>
+                      <div id="modalidadesTableContainer" class="table-responsive" style="max-height: 70vh; display:none;">
+                        <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                          <thead class="sticky-top">
+                            <tr>
+                              <th style="min-width: 220px;">Centro Formación</th>
+                              <th style="min-width: 120px;">Modalidad</th>
+                              <th style="min-width: 150px;">Clasificación</th>
+                              <th style="min-width: 100px;">Total Fichas</th>
+                              <th style="min-width: 100px;">Aprendices</th>
+                            </tr>
+                          </thead>
+                          <tbody id="modalidadesTableBody">
+                            <tr><td colspan="5" class="text-center text-muted py-4">Sin registros</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                          <h6 class="mb-1">Aprendices ECONOMÍA POPULAR, FIC, CAMPESENA</h6>
+                          <p class="text-muted small mb-0">Filtros: Nivel=TECNÓLOGO | Fichas que pasan 2026+ | Total: <strong id="totalEspeciales">0</strong></p>
+                        </div>
+                        <div class="d-flex gap-2">
+                          <select id="filtroEspecialesCentro" class="form-select form-select-sm" style="max-width: 250px;">
+                            <option value="">-- Todos los centros --</option>
+                          </select>
+                          <button id="toggleEspecialesBtn" class="btn btn-sm btn-success" type="button">Mostrar Tabla</button>
+                        </div>
+                      </div>
+                      <div id="especialesTableContainer" class="table-responsive" style="max-height: 70vh; display:none;">
+                        <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                          <thead class="sticky-top">
+                            <tr>
+                              <th style="min-width: 220px;">Centro Formación</th>
+                              <th style="min-width: 150px;">Clasificación</th>
+                              <th style="min-width: 100px;">Total Fichas</th>
+                              <th style="min-width: 100px;">Aprendices</th>
+                            </tr>
+                          </thead>
+                          <tbody id="especialesTableBody">
+                            <tr><td colspan="4" class="text-center text-muted py-4">Sin registros</td></tr>
                           </tbody>
                         </table>
                       </div>

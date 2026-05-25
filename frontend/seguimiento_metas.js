@@ -427,17 +427,23 @@ async function uploadRegistroExcel() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // ===== INICIALIZACIÓN: Ocultar todas las secciones de subida de archivos por defecto =====
+  // ===== INICIALIZACIÓN: Declarar todas las variables del DOM =====
   const catalogoSection = document.getElementById('catalogoSection');
   const registroSection = document.getElementById('registroSection');
   const ofertaSection = document.getElementById('ofertaSection');
   const consolidadoSection = document.getElementById('consolidadoSection');
+  const pe04Section = document.getElementById('pe04Section');
   const subidaArchivosNavbar = document.getElementById('subidaArchivosNavbar');
+  const seguimientoMetasSection = document.getElementById('seguimientoMetasModuleSection');
+  const toggleSubidaArchivosBtn = document.getElementById('toggleSubidaArchivosSection');
+  const toggleSeguimientoMetasBtn = document.getElementById('toggleSeguimientoMetasModuleBtn');
 
+  // ===== Ocultar todas las secciones de subida de archivos por defecto =====
   if (catalogoSection) catalogoSection.style.display = 'none';
   if (registroSection) registroSection.style.display = 'none';
   if (ofertaSection) ofertaSection.style.display = 'none';
   if (consolidadoSection) consolidadoSection.style.display = 'none';
+  if (pe04Section) pe04Section.style.display = 'none';
 
   const uploadBtn = document.getElementById('uploadCatalogoBtn');
   if (uploadBtn) uploadBtn.addEventListener('click', uploadCatalogoExcel);
@@ -509,7 +515,8 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleSectionBtn: 'catalogoSection',
     toggleRegistroSection: 'registroSection',
     toggleOfertaSection: 'ofertaSection',
-    toggleConsolidadoSection: 'consolidadoSection'
+    toggleConsolidadoSection: 'consolidadoSection',
+    togglePe04Section: 'pe04Section'
   };
 
   Object.entries(submoduleButtons).forEach(([buttonId, sectionId]) => {
@@ -892,26 +899,162 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadExcel(`${API_BASE}/consolidado-colegios/exportar-excel`, 'consolidado_colegios.xlsx');
   });
 
-  // ===== NUEVOS EVENTOS PARA NAVBAR PRINCIPAL =====
+  // ===== FUNCIONES PARA APRENDICES RESUMEN (SEGUIMIENTO A LAS METAS) =====
+  async function loadModalidades(centroCentro = '') {
+    try {
+      let url = `${API_BASE}/pe04-seguimiento/resumen-modalidades`;
+      if (centroCentro) url += `?centro=${encodeURIComponent(centroCentro)}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Error al cargar datos');
+      }
+
+      const items = data.items || [];
+      const centros = data.centros_disponibles || [];
+      
+      // Actualizar dropdown de centros
+      const centroSelect = document.getElementById('filtroModalidadesCentro');
+      if (centroSelect && centros.length > 0) {
+        const currentValue = centroSelect.value;
+        centroSelect.innerHTML = '<option value="">-- Todos los centros --</option>' + 
+          centros.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        centroSelect.value = currentValue;
+      }
+      
+      const totalEl = document.getElementById('totalModalidades');
+      if (totalEl) totalEl.textContent = data.total_aprendices || 0;
+
+      const tbody = document.getElementById('modalidadesTableBody');
+      if (!tbody) return;
+
+      if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Sin registros</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = items.map((row) => {
+        let badgeClass = 'bg-secondary';
+        const clasificacion = (row.clasificacion_programa_especial || 'NA').toUpperCase();
+        
+        if (clasificacion === 'SENATEC') badgeClass = 'bg-primary';
+        else if (clasificacion === 'ACME') badgeClass = 'bg-info';
+        else if (clasificacion === 'SER CAMPESENA') badgeClass = 'bg-warning text-dark';
+        else if (clasificacion === 'SER') badgeClass = 'bg-success';
+        else if (clasificacion === 'BILINGUISMO') badgeClass = 'bg-danger';
+        else if (clasificacion === 'CAMPESENA RADIAL') badgeClass = 'bg-teal';
+        
+        return `
+          <tr>
+            <td><strong>${escapeHtml(row.centro_formacion || 'N/A')}</strong></td>
+            <td><span class="badge bg-dark">${escapeHtml(row.modalidad_formacion || 'N/A')}</span></td>
+            <td><span class="badge ${badgeClass}">${escapeHtml(row.clasificacion_programa_especial || 'NA')}</span></td>
+            <td><strong>${row.total_fichas || 0}</strong></td>
+            <td><span class="badge bg-success" style="font-size: 0.95rem;">${row.total_aprendices || 0}</span></td>
+          </tr>
+        `;
+      }).join('');
+    } catch (error) {
+      const tbody = document.getElementById('modalidadesTableBody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error: ${error.message}</td></tr>`;
+    }
+  }
+
+  async function loadEspeciales(centroCentro = '') {
+    try {
+      let url = `${API_BASE}/pe04-seguimiento/resumen-especiales`;
+      if (centroCentro) url += `?centro=${encodeURIComponent(centroCentro)}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Error al cargar datos');
+      }
+
+      const items = data.items || [];
+      const centros = data.centros_disponibles || [];
+      
+      // Actualizar dropdown de centros
+      const centroSelect = document.getElementById('filtroEspecialesCentro');
+      if (centroSelect && centros.length > 0) {
+        const currentValue = centroSelect.value;
+        centroSelect.innerHTML = '<option value="">-- Todos los centros --</option>' + 
+          centros.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        centroSelect.value = currentValue;
+      }
+      
+      const totalEl = document.getElementById('totalEspeciales');
+      if (totalEl) totalEl.textContent = data.total_aprendices || 0;
+
+      const tbody = document.getElementById('especialesTableBody');
+      if (!tbody) return;
+
+      if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Sin registros</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = items.map((row) => {
+        let badgeClass = 'bg-secondary';
+        const clasificacion = (row.clasificacion_programa_especial || 'NA').toUpperCase();
+        
+        if (clasificacion === 'ECONOMIA POPULAR') badgeClass = 'bg-purple';
+        else if (clasificacion === 'FIC') badgeClass = 'bg-pink';
+        else if (clasificacion === 'CAMPESENA') badgeClass = 'bg-olive';
+        
+        return `
+          <tr>
+            <td><strong>${escapeHtml(row.centro_formacion || 'N/A')}</strong></td>
+            <td><span class="badge ${badgeClass}">${escapeHtml(row.clasificacion_programa_especial || 'NA')}</span></td>
+            <td><strong>${row.total_fichas || 0}</strong></td>
+            <td><span class="badge bg-success" style="font-size: 0.95rem;">${row.total_aprendices || 0}</span></td>
+          </tr>
+        `;
+      }).join('');
+    } catch (error) {
+      const tbody = document.getElementById('especialesTableBody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-4">Error: ${error.message}</td></tr>`;
+    }
+  }
+
+  // ===== EVENTOS PARA NAVBAR PRINCIPAL =====
   
-  // Toggle para "Subida de Archivos" - Muestra/Oculta el navbar secundario y todas las secciones
-  const toggleSubidaArchivosBtn = document.getElementById('toggleSubidaArchivosSection');
-  const toggleSeguimientoMetasBtn = document.getElementById('toggleSeguimientoMetasModuleBtn');
-  const seguimientoMetasSection = document.getElementById('seguimientoMetasModuleSection');
-  
+  // Toggle para "Subida de Archivos" - Muestra/Oculta el navbar secundario
   if (toggleSubidaArchivosBtn && subidaArchivosNavbar) {
     toggleSubidaArchivosBtn.addEventListener('click', () => {
-      // Mostrar navbar secundario y secciones de subida
+      // Mostrar navbar secundario
       subidaArchivosNavbar.style.display = 'block';
+      
+      // Mostrar solo la primera sección (Catálogo) y ocultar las demás
       if (catalogoSection) catalogoSection.style.display = 'block';
-      if (registroSection) registroSection.style.display = 'block';
-      if (ofertaSection) ofertaSection.style.display = 'block';
-      if (consolidadoSection) consolidadoSection.style.display = 'block';
+      if (registroSection) registroSection.style.display = 'none';
+      if (ofertaSection) ofertaSection.style.display = 'none';
+      if (consolidadoSection) consolidadoSection.style.display = 'none';
+      if (pe04Section) pe04Section.style.display = 'none';
       
       // Ocultar módulo de Seguimiento a Metas
       if (seguimientoMetasSection) seguimientoMetasSection.style.display = 'none';
       
-      // Actualizar estados de botones
+      // Activar el botón de Catálogo en el navbar secundario
+      const catalogoBtn = document.getElementById('toggleSectionBtn');
+      if (catalogoBtn) {
+        catalogoBtn.classList.add('active');
+        catalogoBtn.setAttribute('aria-pressed', 'true');
+      }
+      
+      // Desactivar otros botones del navbar secundario
+      ['toggleRegistroSection', 'toggleOfertaSection', 'toggleConsolidadoSection', 'togglePe04Section'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-pressed', 'false');
+        }
+      });
+      
+      // Actualizar estados de botones del navbar principal
       toggleSubidaArchivosBtn.classList.add('active');
       toggleSubidaArchivosBtn.setAttribute('aria-pressed', 'true');
       if (toggleSeguimientoMetasBtn) {
@@ -933,6 +1076,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (registroSection) registroSection.style.display = 'none';
       if (ofertaSection) ofertaSection.style.display = 'none';
       if (consolidadoSection) consolidadoSection.style.display = 'none';
+      if (pe04Section) pe04Section.style.display = 'none';
+      
+      // Cargar datos de aprendices al mostrar la sección
+      loadModalidades();
+      loadEspeciales();
       
       // Actualizar estados de botones
       toggleSeguimientoMetasBtn.classList.add('active');
@@ -1030,5 +1178,203 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ===== FUNCIONES PARA PE_04 (MINI MÓDULO) =====
+
+  async function loadPe04Data() {
+    try {
+      const response = await fetch(`${API_BASE}/pe04-seguimiento/data`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Error al cargar datos');
+      }
+
+      const items = data.items || [];
+      const pe04Total = document.getElementById('pe04Total');
+      if (pe04Total) pe04Total.textContent = items.length;
+
+      // Renderizar tabla
+      const tbody = document.getElementById('pe04TableBody');
+      if (!tbody) return;
+
+      if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="19" class="text-center text-muted py-4">Sin registros</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = items.map((row) => {
+        // Determinar color de badge según clasificación
+        let badgeClass = 'bg-secondary';
+        const clasificacion = (row.clasificacion_programa_especial || 'NA').toUpperCase();
+        
+        if (clasificacion === 'SENATEC') badgeClass = 'bg-primary';
+        else if (clasificacion === 'ACME') badgeClass = 'bg-info';
+        else if (clasificacion === 'SER CAMPESENA') badgeClass = 'bg-warning text-dark';
+        else if (clasificacion === 'SER') badgeClass = 'bg-success';
+        else if (clasificacion === 'BILINGUISMO') badgeClass = 'bg-danger';
+        else if (clasificacion === 'CAMPESENA') badgeClass = 'bg-olive';
+        else if (clasificacion === 'ECONOMIA POPULAR') badgeClass = 'bg-purple';
+        else if (clasificacion === 'CAMPESENA RADIAL') badgeClass = 'bg-teal';
+        else if (clasificacion === 'FIC') badgeClass = 'bg-pink';
+        
+        return `
+          <tr>
+            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.centro_formacion || '—')}</td>
+            <td><span class="badge ${badgeClass}">${escapeHtml(row.clasificacion_programa_especial || 'NA')}</span></td>
+            <td>${escapeHtml(row.numero_ficha || '—')}</td>
+            <td>${escapeHtml(row.ciudad_municipio || '—')}</td>
+            <td>${escapeHtml(row.fecha_inicio || '—')}</td>
+            <td>${escapeHtml(row.fecha_fin || '—')}</td>
+            <td>${escapeHtml(row.nivel_formacion || '—')}</td>
+            <td>${escapeHtml(row.denominacion_programa || '—')}</td>
+            <td>${escapeHtml(row.estrategia_programa || '—')}</td>
+            <td>${escapeHtml(row.convenio || '—')}</td>
+            <td>${escapeHtml(row.cupos || '—')}</td>
+            <td>${escapeHtml(row.aprendices_activos || '—')}</td>
+            <td>${escapeHtml(row.certificado || '—')}</td>
+            <td>${escapeHtml(row.tipo_formacion || '—')}</td>
+            <td>${escapeHtml(row.modalidad_formacion || '—')}</td>
+            <td>${escapeHtml(row.estado_curso || '—')}</td>
+            <td>${escapeHtml(row.fecha_corte || '—')}</td>
+            <td><small>${escapeHtml(row.fecha_carga || '—')}</small></td>
+          </tr>
+        `;
+      }).join('');
+    } catch (error) {
+      const statusEl = document.getElementById('pe04Status');
+      if (statusEl) statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${error.message}</div>`;
+    }
+  }
+
+  async function uploadPe04Excel() {
+    const fileInput = document.getElementById('pe04File');
+    if (!fileInput || !fileInput.files.length) {
+      const statusEl = document.getElementById('pe04Status');
+      if (statusEl) statusEl.innerHTML = '<div class="alert alert-warning py-2 mb-0">Selecciona un archivo Excel</div>';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+      const statusEl = document.getElementById('pe04Status');
+      const progressContainer = document.getElementById('pe04ProgressContainer');
+      const progressBar = document.getElementById('pe04ProgressBar');
+      
+      if (progressContainer) progressContainer.style.display = 'block';
+      if (statusEl) statusEl.innerHTML = '<div class="alert alert-info py-2 mb-0">Cargando archivo...</div>';
+
+      const response = await fetch(`${API_BASE}/pe04-seguimiento/upload-excel`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Error al cargar el archivo');
+      }
+
+      if (statusEl) {
+        statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">✅ ${data.message || 'Archivo cargado exitosamente'}</div>`;
+      }
+
+      fileInput.value = '';
+      
+      // Cargar datos actualizado
+      await loadPe04Data();
+      
+      setTimeout(() => {
+        if (progressContainer) progressContainer.style.display = 'none';
+      }, 500);
+    } catch (error) {
+      const statusEl = document.getElementById('pe04Status');
+      if (statusEl) statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">❌ Error: ${error.message}</div>`;
+    }
+  }
+
+  // Event listeners para PE_04
+  document.getElementById('uploadPe04Btn')?.addEventListener('click', uploadPe04Excel);
+  
+  document.getElementById('reloadPe04Btn')?.addEventListener('click', () => {
+    loadPe04Data();
+  });
+
+  const togglePe04TableBtn = document.getElementById('togglePe04TableBtn');
+  const pe04TableContainer = document.getElementById('pe04TableContainer');
+  
+  if (togglePe04TableBtn && pe04TableContainer) {
+    togglePe04TableBtn.addEventListener('click', () => {
+      if (pe04TableContainer.style.display === 'none') {
+        pe04TableContainer.style.display = 'block';
+        togglePe04TableBtn.textContent = 'Ocultar tabla';
+        loadPe04Data();
+      } else {
+        pe04TableContainer.style.display = 'none';
+        togglePe04TableBtn.textContent = 'Mostrar tabla';
+      }
+    });
+  }
+
+  document.getElementById('exportPe04Btn')?.addEventListener('click', () => {
+    downloadExcel(`${API_BASE}/pe04-seguimiento/exportar-excel`, 'pe04_seguimiento.xlsx');
+  });
+
+  // Event listeners para tablas de modalidades y especiales
+  const toggleModalidadesBtn = document.getElementById('toggleModalidadesBtn');
+  const modalidadesTableContainer = document.getElementById('modalidadesTableContainer');
+  const filtroModalidadesCentro = document.getElementById('filtroModalidadesCentro');
+  
+  if (toggleModalidadesBtn && modalidadesTableContainer) {
+    toggleModalidadesBtn.addEventListener('click', () => {
+      if (modalidadesTableContainer.style.display === 'none') {
+        modalidadesTableContainer.style.display = 'block';
+        toggleModalidadesBtn.textContent = 'Ocultar Tabla';
+        loadModalidades(filtroModalidadesCentro?.value || '');
+      } else {
+        modalidadesTableContainer.style.display = 'none';
+        toggleModalidadesBtn.textContent = 'Mostrar Tabla';
+      }
+    });
+  }
+  
+  if (filtroModalidadesCentro) {
+    filtroModalidadesCentro.addEventListener('change', () => {
+      if (modalidadesTableContainer.style.display !== 'none') {
+        loadModalidades(filtroModalidadesCentro.value || '');
+      }
+    });
+  }
+
+  const toggleEspecialesBtn = document.getElementById('toggleEspecialesBtn');
+  const especialesTableContainer = document.getElementById('especialesTableContainer');
+  const filtroEspecialesCentro = document.getElementById('filtroEspecialesCentro');
+  
+  if (toggleEspecialesBtn && especialesTableContainer) {
+    toggleEspecialesBtn.addEventListener('click', () => {
+      if (especialesTableContainer.style.display === 'none') {
+        especialesTableContainer.style.display = 'block';
+        toggleEspecialesBtn.textContent = 'Ocultar Tabla';
+        loadEspeciales(filtroEspecialesCentro?.value || '');
+      } else {
+        especialesTableContainer.style.display = 'none';
+        toggleEspecialesBtn.textContent = 'Mostrar Tabla';
+      }
+    });
+  }
+  
+  if (filtroEspecialesCentro) {
+    filtroEspecialesCentro.addEventListener('change', () => {
+      if (especialesTableContainer.style.display !== 'none') {
+        loadEspeciales(filtroEspecialesCentro.value || '');
+      }
+    });
+  }
+
+  // Cargar datos de PE_04 al iniciar si existen
+  loadPe04Data();
 });
 

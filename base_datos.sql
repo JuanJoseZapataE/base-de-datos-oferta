@@ -226,3 +226,32 @@ CREATE TABLE IF NOT EXISTS `consolidado_colegios` (
     INDEX `idx_consolidado_municipio` (`municipio`),
     INDEX `idx_consolidado_fecha_registro` (`fecha_registro`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Nueva tabla para PE_04 (Seguimiento de Metas) - Copia de programas_formacion
+-- Esta tabla es de solo lectura en el módulo de Seguimiento de Metas
+CREATE TABLE IF NOT EXISTS `programas_formacion_seguimiento_pe04` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `centro_formacion` VARCHAR(200) NULL,
+    `numero_ficha` BIGINT NULL,
+    `ciudad_municipio` VARCHAR(150) NULL,
+    `fecha_inicio` DATE NULL,
+    `fecha_fin` DATE NULL,
+    `nivel_formacion` VARCHAR(100) NULL,
+    `denominacion_programa` VARCHAR(255) NULL,
+    `estrategia_programa` VARCHAR(255) NULL,
+    `convenio` VARCHAR(255) NULL,
+    `cupos` INT NULL,
+    `aprendices_activos` INT NULL,
+    `certificado` VARCHAR(255) NULL,
+    `tipo_formacion` VARCHAR(100) NULL,
+    `modalidad_formacion` VARCHAR(100) NULL,
+    `estado_curso` VARCHAR(100) NULL,
+    `fecha_corte` DATE NULL,
+    `clasificacion_programa_especial` VARCHAR(100) NULL,
+    `fecha_carga` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_pe04_fecha_corte` (`fecha_corte`),
+    INDEX `idx_pe04_municipio` (`ciudad_municipio`),
+    INDEX `idx_pe04_numero_ficha` (`numero_ficha`),
+    INDEX `idx_pe04_clasificacion` (`clasificacion_programa_especial`),
+    INDEX `idx_pe04_fecha_carga` (`fecha_carga`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
