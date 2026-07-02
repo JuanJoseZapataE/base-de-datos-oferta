@@ -31,7 +31,7 @@ Si no responde o no es 3.14.3, instala Python desde la página oficial con esa v
 
 ## 2. Crear base de datos y tablas con MySQL Workbench
 
-1. Abre **MySQL Workbench** y conéctate a tu servidor local (normalmente `localhost` o `127.0.0.1`).
+1. Abre **MySQL Workbench** y conéctate a tu servidor local (normalmente `localhost` o `127.0.0.1`) para este proyecto.
 2. En el menú, ve a **File → Open SQL Script…** y abre el archivo `base_datos.sql` que está en la carpeta del proyecto.
 3. Verifica que en la pestaña del script se vea algo como:
    - `CREATE DATABASE sena_oferta;`
@@ -58,7 +58,7 @@ SOURCE C:/RUTA/DEL/PROYECTO/base_datos.sql;
 
 El backend usa la variable `DATABASE_URL` en el archivo `fastapi_app/.env`.
 
-Abre `fastapi_app/.env` y ajusta la línea a tus datos reales:
+Abre en la carpeta del proyecto fastapi_app y en el archivo .env ajusta la línea a tus datos reales:
 
 ```env
 DATABASE_URL=mysql+pymysql://USUARIO:PASSWORD@HOST:PUERTO/sena_oferta
