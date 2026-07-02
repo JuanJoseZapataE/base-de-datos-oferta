@@ -86,14 +86,15 @@ Donde:
 
 En este proyecto se usa un entorno virtual dentro de `fastapi_app` llamado **`oferta`**.
 
-1. Abre **PowerShell**.
-2. Ve a la carpeta del backend:
+1. Ve a la carpeta del backend:
 
-```powershell
-cd "C:\RUTA\DEL\PROYECTO\fastapi_app"
+```
+"C:\RUTA\DEL\PROYECTO\fastapi_app"
 ```
 
-3. Crea el entorno virtual `oferta` (solo la primera vez en cada PC):
+2. escribe cmd en el espacio en blanco despues de la ruta del proyecto 
+
+3. En la Termianl Crea el entorno virtual `oferta` (solo la primera vez en cada PC):
 
 ```powershell
 python -m venv oferta
