@@ -13,7 +13,8 @@ C:\Users\TU_USUARIO\Documentos\PAGINA_OFERTA\
 ## 1. Requisitos previos
 
 - Python 3.11 recomendado (también suele funcionar 3.10 o 3.12).
-- MySQL Server y MySQL Workbench instalados.
+- MySQL Server y MySQL Workbench instalados (Selecciona la opcion go to the download page y descarga la version de 565 mb).
+  - Recuerda que el usuario y la contraseña se van a usar al momento de la conexion a la base de datos
 - Carpeta del proyecto ya copiada en el nuevo PC.
 
 Comprobar Python en PowerShell (Ventana de Comandos):
@@ -24,7 +25,7 @@ py --version
 pip --version
 ```
 
-Si no responde o no es 3.x, instala Python desde la página oficial y marca la opción "Add Python to PATH".
+Si no responde o no es 3.14.3, instala Python desde la página oficial con esa version y marca la opción "Add Python to PATH en el instalador.
 
 ---
 
