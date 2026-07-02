@@ -83,7 +83,11 @@ Donde:
 
 ## 4. Crear el entorno virtual (carpeta `oferta`)
 
-En este proyecto se usa un entorno virtual dentro de `fastapi_app` llamado **`oferta`**.
+Ingresa a la carpeta del proyecto y ejecute el archivo instalar_entorno_oferta
+
+---
+
+De querer hacer manual sigue los siguientes pasos 
 
 1. Ve a la carpeta del backend:
 
@@ -91,7 +95,7 @@ En este proyecto se usa un entorno virtual dentro de `fastapi_app` llamado **`of
 "C:\RUTA\DEL\PROYECTO\fastapi_app"
 ```
 
-2. escribe cmd en el espacio en blanco despues de la ruta del proyecto 
+2. Escribe cmd en el espacio en blanco despues de la ruta del proyecto 
 
 3. En la Termianl Crea el entorno virtual `oferta` (solo la primera vez en cada PC) con alguna de estas dos opciones:
 
@@ -100,7 +104,7 @@ python -m venv oferta
 py -m venv oferta
 ```
 
-Esto creará la carpeta `fastapi_app\oferta\` con `Scripts`, `Lib`, etc.
+Esto creará la carpeta oferta dentro `fastapi_app` con `Scripts`, `Lib`, etc.
 
 ---
 
