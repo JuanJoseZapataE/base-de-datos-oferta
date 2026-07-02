@@ -16,10 +16,11 @@ C:\Users\TU_USUARIO\Documentos\PAGINA_OFERTA\
 - MySQL Server y MySQL Workbench instalados.
 - Carpeta del proyecto ya copiada en el nuevo PC.
 
-Comprobar Python en PowerShell:
+Comprobar Python en PowerShell (Ventana de Comandos):
 
 ```powershell
 python --version
+py --version
 pip --version
 ```
 
