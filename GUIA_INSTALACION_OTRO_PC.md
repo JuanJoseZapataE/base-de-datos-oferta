@@ -124,7 +124,7 @@ cd "C:\RUTA\DEL\PROYECTO\fastapi_app"
 Intenta activar el entorno:
 
 ```powershell
-.\n+oferta\Scripts\Activate.ps1
+.\fastapi_app\oferta\Scripts\Activate.ps1
 ```
 
 Si **funciona**, verás algo como `(oferta)` al inicio de la línea; ya puedes pasar al paso 6.
