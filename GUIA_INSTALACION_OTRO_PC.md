@@ -22,7 +22,6 @@ Comprobar Python en PowerShell (Ventana de Comandos):
 ```powershell
 python --version
 py --version
-pip --version
 ```
 
 Si no responde o no es 3.14.3, instala Python desde la página oficial con esa version y marca la opción "Add Python to PATH en el instalador.
@@ -94,10 +93,11 @@ En este proyecto se usa un entorno virtual dentro de `fastapi_app` llamado **`of
 
 2. escribe cmd en el espacio en blanco despues de la ruta del proyecto 
 
-3. En la Termianl Crea el entorno virtual `oferta` (solo la primera vez en cada PC):
+3. En la Termianl Crea el entorno virtual `oferta` (solo la primera vez en cada PC) con alguna de estas dos opciones:
 
 ```powershell
 python -m venv oferta
+py -m venv oferta
 ```
 
 Esto creará la carpeta `fastapi_app\oferta\` con `Scripts`, `Lib`, etc.
