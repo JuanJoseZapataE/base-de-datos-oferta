@@ -49,15 +49,20 @@ CREATE TABLE IF NOT EXISTS `programas_formacion` (
     `denominacion_programa` VARCHAR(255) NULL,
     `estrategia_programa` VARCHAR(255) NULL,
     `convenio` VARCHAR(255) NULL,
-    `cupos` INT NULL,
     `aprendices_activos` INT NULL,
     `certificado` VARCHAR(255) NULL,
     `tipo_formacion` VARCHAR(100) NULL,
+    `modalidad_formacion` VARCHAR(100) NULL,
     `estado_curso` VARCHAR(100) NULL,
     `fecha_corte` DATE NULL,
+    `nombre_empresa` VARCHAR(255) NULL,
+    `aprendices_matriculados` INT NULL,
+    `fecha_inicio_etapa_productiva` DATE NULL,
+    `vigencia_aprendices` INT NULL,
     INDEX `idx_programas_fecha_corte` (`fecha_corte`),
     INDEX `idx_programas_municipio` (`ciudad_municipio`),
-    INDEX `idx_programas_numero_ficha` (`numero_ficha`)
+    INDEX `idx_programas_numero_ficha` (`numero_ficha`),
+    INDEX `idx_programas_vigencia` (`vigencia_aprendices`)
 );
 
 -- Nueva tabla para oferta indicativa

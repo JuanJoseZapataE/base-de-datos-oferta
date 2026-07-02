@@ -248,7 +248,12 @@ function escapeHtml(v) {
 
 function toLabel(key) {
   if (key === 'fecha_corte') return 'Fecha de corte PE-04';
-  if (key === 'cupos') return 'Aprendices matriculados';
+  if (key === 'inscritos') return 'Inscritos';
+  if (key === 'aprendices_matriculados') return 'Aprendices Matriculados';
+  if (key === 'nombre_empresa') return 'Nombre Empresa';
+  if (key === 'modalidad_formacion') return 'Modalidad Formación';
+  if (key === 'fecha_inicio_etapa_productiva') return 'Inicio Etapa Productiva';
+  if (key === 'vigencia_aprendices') return 'Vigencia Aprendices';
   return String(key || '')
     .replace(/_/g, ' ')
     .split(' ')
@@ -419,22 +424,23 @@ async function fetchAllProgramasAndUpdateTotales() {
   }
 }
 
-// Sumar matriculados (cupos), activos y certificados sobre el conjunto filtrado completo
+//sumar inscritos en la primera opción desde inscripciones, activos y certificados sobre el conjunto filtrado completo
+
 function updateProgramasTotalsSummary(rows) {
   const totals = rows.reduce((acc, r) => {
-    acc.matriculados += toNumberProgramas(r.cupos ?? r.cupo);
+    acc.inscritos += toNumberProgramas(r.inscritos);
     acc.activos += toNumberProgramas(r.aprendices_activos);
     acc.certificados += toNumberProgramas(r.certificado);
     return acc;
-  }, { matriculados: 0, activos: 0, certificados: 0 });
+  }, { inscritos: 0, activos: 0, certificados: 0 });
 
   const elRows = document.getElementById('sumProgRegistros');
-  const elMat = document.getElementById('sumProgMatriculados');
+  const elPrimera = document.getElementById('sumProgCupos');
   const elAct = document.getElementById('sumProgActivos');
   const elCert = document.getElementById('sumProgCertificados');
 
   if (elRows) elRows.textContent = formatNumberProgramas(rows.length);
-  if (elMat) elMat.textContent = formatNumberProgramas(totals.matriculados);
+  if (elPrimera) elPrimera.textContent = formatNumberProgramas(totals.inscritos);
   if (elAct) elAct.textContent = formatNumberProgramas(totals.activos);
   if (elCert) elCert.textContent = formatNumberProgramas(totals.certificados);
 }
@@ -650,14 +656,48 @@ function renderTable(rows) {
     return;
   }
 
-  const keys = Object.keys(rows[0]).filter((k) => k !== 'id');
+  // Orden específico de columnas para mostrar
+  const columnOrder = [
+    'numero_ficha',
+    'centro_formacion',
+    'ciudad_municipio',
+    'denominacion_programa',
+    'nivel_formacion',
+    'fecha_inicio',
+    'fecha_fin',
+    'fecha_inicio_etapa_productiva',
+    'inscritos',
+    'aprendices_activos',
+    'aprendices_matriculados',
+    'certificado',
+    'tipo_formacion',
+    'modalidad_formacion',
+    'estrategia_programa',
+    'estado_curso',
+    'convenio',
+    'nombre_empresa',
+    'fecha_corte',
+  ];
+
+  // Obtener todas las claves del primer objeto, excluyendo 'id'
+  const allKeys = Object.keys(rows[0]).filter((k) => k !== 'id');
+  
+  // Ordenar: primero las del columnOrder que existan, luego las demás
+  const orderedKeys = [];
+  columnOrder.forEach((col) => {
+    if (allKeys.includes(col)) orderedKeys.push(col);
+  });
+  allKeys.forEach((col) => {
+    if (!orderedKeys.includes(col)) orderedKeys.push(col);
+  });
+
   const trh = document.createElement('tr');
-  trh.innerHTML = keys.map((k) => `<th>${toLabel(k)}</th>`).join('');
+  trh.innerHTML = orderedKeys.map((k) => `<th>${toLabel(k)}</th>`).join('');
   thead.appendChild(trh);
 
   rows.forEach((row) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = keys.map((k) => `<td>${escapeHtml(row[k])}</td>`).join('');
+    tr.innerHTML = orderedKeys.map((k) => `<td>${escapeHtml(row[k])}</td>`).join('');
     tbody.appendChild(tr);
   });
 }

@@ -11,6 +11,7 @@ import io
 import os
 import math
 from datetime import datetime, date, time
+from dateutil.relativedelta import relativedelta
 import re
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -55,116 +56,120 @@ def programas_all(
         years = [y.strip() for y in str(year).split(',') if y.strip()]
         if years:
             if len(years) == 1:
-                clauses.append('YEAR(fecha_corte) = :year_0')
+                clauses.append('YEAR(p.fecha_corte) = :year_0')
             else:
                 in_keys = []
                 for i, val in enumerate(years):
                     key = f'year_{i}'
                     in_keys.append(f':{key}')
                     params[key] = int(val)
-                clauses.append('YEAR(fecha_corte) IN (' + ','.join(in_keys) + ')')
+                clauses.append('YEAR(p.fecha_corte) IN (' + ','.join(in_keys) + ')')
             if 'year_0' not in params and years:
                 params['year_0'] = int(years[0])
     if municipio:
         municipios = [m.strip().lower() for m in str(municipio).split(',') if m.strip()]
         if municipios:
             if len(municipios) == 1:
-                clauses.append('LOWER(TRIM(ciudad_municipio)) = :municipio_0')
+                clauses.append('LOWER(TRIM(p.ciudad_municipio)) = :municipio_0')
             else:
                 in_keys = []
                 for i, val in enumerate(municipios):
                     key = f'municipio_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
             if 'municipio_0' not in params and municipios:
                 params['municipio_0'] = municipios[0]
     if centro:
         centros = [c.strip().lower() for c in str(centro).split(',') if c.strip()]
         if centros:
             if len(centros) == 1:
-                clauses.append('LOWER(TRIM(centro_formacion)) = :centro_0')
+                clauses.append('LOWER(TRIM(p.centro_formacion)) = :centro_0')
             else:
                 in_keys = []
                 for i, val in enumerate(centros):
                     key = f'centro_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(centro_formacion)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.centro_formacion)) IN (' + ','.join(in_keys) + ')')
             if 'centro_0' not in params and centros:
                 params['centro_0'] = centros[0]
     if nivel:
         niveles = [n.strip().lower() for n in str(nivel).split(',') if n.strip()]
         if niveles:
             if len(niveles) == 1:
-                clauses.append('LOWER(TRIM(nivel_formacion)) = :nivel_0')
+                clauses.append('LOWER(TRIM(p.nivel_formacion)) = :nivel_0')
             else:
                 in_keys = []
                 for i, val in enumerate(niveles):
                     key = f'nivel_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(nivel_formacion)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.nivel_formacion)) IN (' + ','.join(in_keys) + ')')
             if 'nivel_0' not in params and niveles:
                 params['nivel_0'] = niveles[0]
     if estrategia:
         estrategias = [e.strip().lower() for e in str(estrategia).split(',') if e.strip()]
         if estrategias:
             if len(estrategias) == 1:
-                clauses.append('LOWER(TRIM(estrategia_programa)) = :estrategia_0')
+                clauses.append('LOWER(TRIM(p.estrategia_programa)) = :estrategia_0')
             else:
                 in_keys = []
                 for i, val in enumerate(estrategias):
                     key = f'estrategia_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(estrategia_programa)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.estrategia_programa)) IN (' + ','.join(in_keys) + ')')
             if 'estrategia_0' not in params and estrategias:
                 params['estrategia_0'] = estrategias[0]
     if convenio:
         convenios = [c.strip().lower() for c in str(convenio).split(',') if c.strip()]
         if convenios:
             if len(convenios) == 1:
-                clauses.append('LOWER(TRIM(convenio)) = :convenio_0')
+                clauses.append('LOWER(TRIM(p.convenio)) = :convenio_0')
             else:
                 in_keys = []
                 for i, val in enumerate(convenios):
                     key = f'convenio_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(convenio)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.convenio)) IN (' + ','.join(in_keys) + ')')
             if 'convenio_0' not in params and convenios:
                 params['convenio_0'] = convenios[0]
     if vigencia is not None:
         vigencias = [v.strip() for v in str(vigencia).split(',') if v.strip()]
         if vigencias:
             if len(vigencias) == 1:
-                clauses.append('YEAR(fecha_inicio) = :vigencia_0')
+                clauses.append('YEAR(p.fecha_inicio) = :vigencia_0')
             else:
                 in_keys = []
                 for i, val in enumerate(vigencias):
                     key = f'vigencia_{i}'
                     in_keys.append(f':{key}')
                     params[key] = int(val)
-                clauses.append('YEAR(fecha_inicio) IN (' + ','.join(in_keys) + ')')
+                clauses.append('YEAR(p.fecha_inicio) IN (' + ','.join(in_keys) + ')')
             if 'vigencia_0' not in params and vigencias:
                 params['vigencia_0'] = int(vigencias[0])
     if numero_ficha is not None:
-        clauses.append('numero_ficha = :numero_ficha')
+        clauses.append('p.numero_ficha = :numero_ficha')
         params['numero_ficha'] = int(numero_ficha)
     if search:
         s = str(search).strip().lower()
         if s:
-            clauses.append('LOWER(TRIM(denominacion_programa)) LIKE :search')
+            clauses.append('LOWER(TRIM(p.denominacion_programa)) LIKE :search')
             params['search'] = f'%{s}%'
     if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
-        clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
+        clauses.append('(p.certificado IS NOT NULL AND p.certificado <> 0)')
 
     where_sql = ''
     if clauses:
         where_sql = ' WHERE ' + ' AND '.join(clauses)
 
-    sql = f'SELECT * FROM programas_formacion{where_sql} ORDER BY fecha_corte DESC, numero_ficha ASC, id ASC'
+    sql = (
+        get_programas_select_sql() +
+        f'{where_sql} '
+        'ORDER BY p.fecha_corte DESC, p.numero_ficha ASC, p.id ASC'
+    )
     try:
         df = pd.read_sql(text(sql), con=engine, params=params)
     except Exception as e:
@@ -176,7 +181,11 @@ def programas_all(
         df = df.replace([float('inf'), float('-inf')], pd.NA)
 
         # Convertir columnas de fecha/tiempo a cadenas ISO para que sean JSON serializables
-        for col in ['fecha_inicio', 'fecha_fin', 'fecha_corte']:
+        for col in ['fecha_inicio',
+                    'fecha_fin',
+                    'fecha_corte',
+                    'fecha_inicio_etapa_productiva',
+                    'fecha_fin_etapa_productiva']:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors='coerce')
                 df[col] = df[col].apply(
@@ -1015,13 +1024,49 @@ PROGRAMAS_COLUMNS = [
     # Antes: estrato_programa. Ahora se usa como "estrategia del programa".
     'estrategia_programa',
     'convenio',
-    'cupos',
     'aprendices_activos',
     'certificado',
     'tipo_formacion',
+    'modalidad_formacion',
     'estado_curso',
     'fecha_corte',
+    'nombre_empresa',
+    'aprendices_matriculados',
+    'vigencia_aprendices',
+    'fecha_inicio_etapa_productiva',
 ]
+
+PROGRAMAS_SELECT_COLUMNS = [
+    'id',
+    'centro_formacion',
+    'numero_ficha',
+    'ciudad_municipio',
+    'fecha_inicio',
+    'fecha_fin',
+    'nivel_formacion',
+    'denominacion_programa',
+    'estrategia_programa',
+    'convenio',
+    'aprendices_activos',
+    'certificado',
+    'tipo_formacion',
+    'modalidad_formacion',
+    'estado_curso',
+    'fecha_corte',
+    'nombre_empresa',
+    'aprendices_matriculados',
+    'vigencia_aprendices',
+    'fecha_inicio_etapa_productiva',
+]
+
+
+def get_programas_select_sql() -> str:
+    select_cols = ', '.join(f'p.{col}' for col in PROGRAMAS_SELECT_COLUMNS)
+    return (
+        f'SELECT {select_cols}, COALESCE(f.inscritos_primera_opcion, 0) AS inscritos '
+        'FROM programas_formacion p '
+        'LEFT JOIN fichas_formacion f ON f.cod_ficha = p.numero_ficha '
+    )
 
 
 INDICATIVA_COLUMNS = [
@@ -1066,15 +1111,20 @@ def ensure_programas_table():
         denominacion_programa VARCHAR(255) NULL,
         estrategia_programa VARCHAR(255) NULL,
         convenio VARCHAR(255) NULL,
-        cupos INT NULL,
         aprendices_activos INT NULL,
         certificado VARCHAR(255) NULL,
         tipo_formacion VARCHAR(100) NULL,
+        modalidad_formacion VARCHAR(100) NULL,
         estado_curso VARCHAR(100) NULL,
         fecha_corte DATE NULL,
+        nombre_empresa VARCHAR(255) NULL,
+        aprendices_matriculados INT NULL,
+        vigencia_aprendices INT NULL,
+        fecha_inicio_etapa_productiva DATE NULL,
         INDEX idx_programas_fecha_corte (fecha_corte),
         INDEX idx_programas_municipio (ciudad_municipio),
-        INDEX idx_programas_numero_ficha (numero_ficha)
+        INDEX idx_programas_numero_ficha (numero_ficha),
+        INDEX idx_programas_vigencia (vigencia_aprendices)
     )
     """
     with engine.begin() as conn:
@@ -1093,6 +1143,37 @@ def ensure_programas_table():
         # Asegurar columna estado_curso para instalaciones previas.
         try:
             conn.execute(text('ALTER TABLE programas_formacion ADD COLUMN estado_curso VARCHAR(100) NULL'))
+        except Exception:
+            pass
+        # Agregar nuevas columnas del PE_04 (modalidad_formacion, nombre_empresa, etc)
+        try:
+            conn.execute(text('ALTER TABLE programas_formacion ADD COLUMN modalidad_formacion VARCHAR(100) NULL'))
+        except Exception:
+            pass
+        try:
+            conn.execute(text('ALTER TABLE programas_formacion ADD COLUMN nombre_empresa VARCHAR(255) NULL'))
+        except Exception:
+            pass
+        try:
+            conn.execute(text('ALTER TABLE programas_formacion ADD COLUMN aprendices_matriculados INT NULL'))
+        except Exception:
+            pass
+        try:
+            conn.execute(text('ALTER TABLE programas_formacion ADD COLUMN vigencia_aprendices INT NULL'))
+        except Exception:
+            pass
+        try:
+            conn.execute(text('ALTER TABLE programas_formacion ADD COLUMN fecha_inicio_etapa_productiva DATE NULL'))
+        except Exception:
+            pass
+        # Agregar índice en vigencia_aprendices si no existe
+        try:
+            conn.execute(text('ALTER TABLE programas_formacion ADD INDEX idx_programas_vigencia (vigencia_aprendices)'))
+        except Exception:
+            pass
+        # inscritos ya no se guarda en ejecucion; se consulta desde fichas_formacion.inscritos_primera_opcion.
+        try:
+            conn.execute(text('ALTER TABLE programas_formacion DROP COLUMN cupos'))
         except Exception:
             pass
 
@@ -2956,13 +3037,21 @@ def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file:
             'estado_del_curso',
         ],
         'convenio': ['convenio', 'nombre_convenio', 'tipo_convenio'],
-        'cupos': ['cupos', 'cupo', 'meta_cupo', 'meta_cupos', 'total_aprendices'],
         'aprendices_activos': ['aprendices_activos', 'total_aprendices_activos'],
+        'aprendices_matriculados': [
+            'aprendices_matriculados',
+            'total_aprendices',
+            'total_aprendices_matriculados',
+            'matriculados',
+            'aprendices_totales',
+        ],
         'certificado': ['certificado'],
         # Ahora tipo_formacion se toma principalmente desde MODALIDAD_FORMACION
         # (normalizado a modalidad_formacion), manteniendo aliases anteriores
         # como compatibilidad por si vienen otros formatos viejos.
         'tipo_formacion': ['modalidad_formacion', 'tipo_formacion', 'tipo_de_formacion', 'nombre_tipo_formacion'],
+        'modalidad_formacion': ['modalidad_formacion', 'modalidad_de_formacion', 'tipo_modalidad'],
+        'nombre_empresa': ['nombre_empresa', 'empresa', 'razon_social'],
     }
 
     # Detectar si los encabezados reales no estan en la primera fila (caso tipico: primera fila con titulo PE-04_...)
@@ -3029,7 +3118,6 @@ def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file:
         # Para estrategia_programa no usamos heuristica de palabras clave; se
         # confia en el mapeo explicito de col_map (NOMBRE_PROGRAMA_ESPECIAL).
         'convenio': [['convenio']],
-        'cupos': [['cupo'], ['cupos']],
         'aprendices_activos': [['aprendices', 'activos'], ['activos']],
         'certificado': [['certificado']],
         'tipo_formacion': [['tipo', 'formacion']],
@@ -3057,11 +3145,49 @@ def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file:
         # (por ejemplo 31/12/2018), por eso usamos dayfirst=True.
         df_out[dcol] = pd.to_datetime(df_out[dcol], errors='coerce', dayfirst=True).dt.date
 
-    for ncol in ['numero_ficha', 'cupos', 'aprendices_activos']:
+    for ncol in ['numero_ficha', 'aprendices_activos', 'aprendices_matriculados']:
         df_out[ncol] = pd.to_numeric(df_out[ncol], errors='coerce').astype('Int64')
 
-    for scol in ['centro_formacion', 'ciudad_municipio', 'nivel_formacion', 'denominacion_programa', 'estrategia_programa', 'convenio', 'certificado', 'tipo_formacion', 'estado_curso']:
-        df_out[scol] = df_out[scol].apply(clean_optional_text)
+    for scol in ['centro_formacion', 'ciudad_municipio', 'nivel_formacion', 'denominacion_programa', 'estrategia_programa', 'convenio', 'certificado', 'tipo_formacion', 'estado_curso', 'modalidad_formacion', 'nombre_empresa']:
+        if scol in df_out.columns:
+            df_out[scol] = df_out[scol].apply(clean_optional_text)
+    
+    # Crear columnas nuevas que se calcularan
+    df_out['vigencia_aprendices'] = None
+    df_out['fecha_inicio_etapa_productiva'] = None
+    
+    # Calcular vigencia_aprendices (año de fecha_inicio)
+    if 'fecha_inicio' in df_out.columns:
+        df_out['vigencia_aprendices'] = df_out['fecha_inicio'].apply(
+            lambda x: x.year if pd.notna(x) and hasattr(x, 'year') else None
+        )
+    
+    # Calcular fecha_inicio_etapa_productiva basada en nivel_formacion y fecha_fin
+    
+    def calc_fecha_etapa_productiva(row):
+        """Calcula fecha de inicio de etapa productiva según nivel y fecha fin"""
+        try:
+            # row es una Serie de pandas cuando se usa axis=1
+            fecha_fin = row['fecha_fin'] if 'fecha_fin' in row.index else None
+            nivel = row['nivel_formacion'] if 'nivel_formacion' in row.index else None
+            
+            if pd.isna(fecha_fin) or fecha_fin is None:
+                return None
+            
+            nivel_str = str(nivel).strip().upper() if nivel else ""
+            
+            if nivel_str in ['TECNÓLOGO', 'TECNICO', 'TÉCNICO']:
+                return fecha_fin - relativedelta(months=6)
+            elif nivel_str in ['OPERARIO', 'AUXILIAR']:
+                return fecha_fin - relativedelta(months=3)
+            else:
+                return None
+        except Exception as e:
+            print(f"Error en calc_fecha_etapa_productiva: {e}")
+            return None
+    
+    if 'fecha_fin' in df_out.columns and 'nivel_formacion' in df_out.columns:
+        df_out['fecha_inicio_etapa_productiva'] = df_out.apply(calc_fecha_etapa_productiva, axis=1)
 
     total_rows_before_filter = len(df_out)
     num_ficha_with_value = int(df_out['numero_ficha'].notna().sum())
@@ -3112,12 +3238,8 @@ def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file:
         #   algunos campos segun la fecha_corte:
         #   - aprendices_activos siempre se actualiza con el valor mas reciente
         #     disponible (si viene en el Excel).
-        #   - "aprendices matriculados" (antes cupos) debe representar el valor
-        #     del corte mas antiguo disponible para esa ficha. Es decir:
-        #       * Si el nuevo archivo tiene fecha_corte mas reciente que la
-        #         ya almacenada, NO se toca cupos.
-        #       * Si el nuevo archivo tiene fecha_corte mas antigua, se
-        #         actualizan cupos y fecha_corte con ese corte mas viejo.
+        #   - "inscritos" ya no se guarda aqui; se consulta desde el modulo de
+        #     inscripciones (fichas_formacion.inscritos_primera_opcion) por numero_ficha.
         #   - estrategia_programa y estado_curso se siguen actualizando de
         #     forma "suave" solo cuando vienen valores.
 
@@ -3164,26 +3286,6 @@ def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file:
                     continue
                 num_ficha = int(row['numero_ficha'])
 
-                # Fecha de corte actualmente almacenada para esta ficha (si existe)
-                old_fecha = existing_fechas.get(num_ficha)
-                new_fecha = fecha_corte_file
-
-                # cupos (aprendices matriculados): solo se actualiza cuando el
-                # nuevo archivo tiene una fecha_corte mas antigua que la
-                # almacenada o cuando no hay fecha previa.
-                cupos_val = row.get('cupos') if 'cupos' in df_update.columns else None
-                cupos_param = None
-                fecha_param = None
-                if pd.notna(cupos_val):
-                    try:
-                        cupos_int = int(cupos_val)
-                    except Exception:
-                        cupos_int = None
-                    if cupos_int is not None:
-                        if old_fecha is None or new_fecha is None or new_fecha < old_fecha:
-                            cupos_param = cupos_int
-                            fecha_param = new_fecha
-
                 # aprendices_activos: siempre se actualiza si viene algun valor
                 activos_val = row.get('aprendices_activos') if 'aprendices_activos' in df_update.columns else None
                 activos_param = None
@@ -3202,9 +3304,7 @@ def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file:
                         'numero_ficha': num_ficha,
                         'estrategia_programa': est_param,
                         'estado_curso': estado_param,
-                        'cupos': cupos_param,
                         'aprendices_activos': activos_param,
-                        'fecha_corte': fecha_param,
                     }
                 )
 
@@ -3214,9 +3314,7 @@ def _process_programas_excel(*, content: bytes, filename: str, fecha_corte_file:
                     'SET '
                     '    estrategia_programa = COALESCE(:estrategia_programa, estrategia_programa), '
                     '    estado_curso = COALESCE(:estado_curso, estado_curso), '
-                    '    cupos = COALESCE(:cupos, cupos), '
-                    '    aprendices_activos = COALESCE(:aprendices_activos, aprendices_activos), '
-                    '    fecha_corte = COALESCE(:fecha_corte, fecha_corte) '
+                    '    aprendices_activos = COALESCE(:aprendices_activos, aprendices_activos) '
                     'WHERE numero_ficha = :numero_ficha'
                 )
                 with engine.begin() as conn:
@@ -3411,118 +3509,118 @@ def get_programas(
         years = [y.strip() for y in str(year).split(',') if y.strip()]
         if years:
             if len(years) == 1:
-                clauses.append('YEAR(fecha_corte) = :year_0')
+                clauses.append('YEAR(p.fecha_corte) = :year_0')
             else:
                 in_keys = []
                 for i, val in enumerate(years):
                     key = f'year_{i}'
                     in_keys.append(f':{key}')
                     params[key] = int(val)
-                clauses.append('YEAR(fecha_corte) IN (' + ','.join(in_keys) + ')')
+                clauses.append('YEAR(p.fecha_corte) IN (' + ','.join(in_keys) + ')')
             if 'year_0' not in params and years:
                 params['year_0'] = int(years[0])
     if municipio:
         municipios = [m.strip().lower() for m in str(municipio).split(',') if m.strip()]
         if municipios:
             if len(municipios) == 1:
-                clauses.append('LOWER(TRIM(ciudad_municipio)) = :municipio_0')
+                clauses.append('LOWER(TRIM(p.ciudad_municipio)) = :municipio_0')
             else:
                 in_keys = []
                 for i, val in enumerate(municipios):
                     key = f'municipio_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
             if 'municipio_0' not in params and municipios:
                 params['municipio_0'] = municipios[0]
     if centro:
         centros = [c.strip().lower() for c in str(centro).split(',') if c.strip()]
         if centros:
             if len(centros) == 1:
-                clauses.append('LOWER(TRIM(centro_formacion)) = :centro_0')
+                clauses.append('LOWER(TRIM(p.centro_formacion)) = :centro_0')
             else:
                 in_keys = []
                 for i, val in enumerate(centros):
                     key = f'centro_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(centro_formacion)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.centro_formacion)) IN (' + ','.join(in_keys) + ')')
             if 'centro_0' not in params and centros:
                 params['centro_0'] = centros[0]
     if nivel:
         niveles = [n.strip().lower() for n in str(nivel).split(',') if n.strip()]
         if niveles:
             if len(niveles) == 1:
-                clauses.append('LOWER(TRIM(nivel_formacion)) = :nivel_0')
+                clauses.append('LOWER(TRIM(p.nivel_formacion)) = :nivel_0')
             else:
                 in_keys = []
                 for i, val in enumerate(niveles):
                     key = f'nivel_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(nivel_formacion)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.nivel_formacion)) IN (' + ','.join(in_keys) + ')')
             if 'nivel_0' not in params and niveles:
                 params['nivel_0'] = niveles[0]
     if estrategia:
         estrategias = [e.strip().lower() for e in str(estrategia).split(',') if e.strip()]
         if estrategias:
             if len(estrategias) == 1:
-                clauses.append('LOWER(TRIM(estrategia_programa)) = :estrategia_0')
+                clauses.append('LOWER(TRIM(p.estrategia_programa)) = :estrategia_0')
             else:
                 in_keys = []
                 for i, val in enumerate(estrategias):
                     key = f'estrategia_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(estrategia_programa)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.estrategia_programa)) IN (' + ','.join(in_keys) + ')')
             if 'estrategia_0' not in params and estrategias:
                 params['estrategia_0'] = estrategias[0]
     if convenio:
         convenios = [c.strip().lower() for c in str(convenio).split(',') if c.strip()]
         if convenios:
             if len(convenios) == 1:
-                clauses.append('LOWER(TRIM(convenio)) = :convenio_0')
+                clauses.append('LOWER(TRIM(p.convenio)) = :convenio_0')
             else:
                 in_keys = []
                 for i, val in enumerate(convenios):
                     key = f'convenio_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(convenio)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.convenio)) IN (' + ','.join(in_keys) + ')')
             if 'convenio_0' not in params and convenios:
                 params['convenio_0'] = convenios[0]
     if vigencia is not None:
         vigencias = [v.strip() for v in str(vigencia).split(',') if v.strip()]
         if vigencias:
             if len(vigencias) == 1:
-                clauses.append('YEAR(fecha_inicio) = :vigencia_0')
+                clauses.append('YEAR(p.fecha_inicio) = :vigencia_0')
             else:
                 in_keys = []
                 for i, val in enumerate(vigencias):
                     key = f'vigencia_{i}'
                     in_keys.append(f':{key}')
                     params[key] = int(val)
-                clauses.append('YEAR(fecha_inicio) IN (' + ','.join(in_keys) + ')')
+                clauses.append('YEAR(p.fecha_inicio) IN (' + ','.join(in_keys) + ')')
             if 'vigencia_0' not in params and vigencias:
                 params['vigencia_0'] = int(vigencias[0])
     if numero_ficha is not None:
-        clauses.append('numero_ficha = :numero_ficha')
+        clauses.append('p.numero_ficha = :numero_ficha')
         params['numero_ficha'] = int(numero_ficha)
     if search:
         s = str(search).strip().lower()
         if s:
-            clauses.append('LOWER(TRIM(denominacion_programa)) LIKE :search')
+            clauses.append('LOWER(TRIM(p.denominacion_programa)) LIKE :search')
             params['search'] = f'%{s}%'
     # solo_certificados: cualquier valor no vacio/"0"/"false" activa el filtro
     if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
-        clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
+        clauses.append('(p.certificado IS NOT NULL AND p.certificado <> 0)')
 
     where_sql = ''
     if clauses:
         where_sql = ' WHERE ' + ' AND '.join(clauses)
 
 
-    count_sql = f'SELECT COUNT(*) AS total FROM programas_formacion{where_sql}'
+    count_sql = f'SELECT COUNT(*) AS total FROM programas_formacion p{where_sql}'
     try:
         with engine.connect() as conn:
             total = conn.execute(text(count_sql), params).scalar() or 0
@@ -3531,9 +3629,9 @@ def get_programas(
 
     offset = (page - 1) * per_page
     data_sql = (
-        'SELECT * FROM programas_formacion'
+        get_programas_select_sql() +
         f'{where_sql} '
-        'ORDER BY fecha_corte DESC, numero_ficha ASC, id ASC '
+        'ORDER BY p.fecha_corte DESC, p.numero_ficha ASC, p.id ASC '
         'LIMIT :limit OFFSET :offset'
     )
     params_data = dict(params)
@@ -3601,105 +3699,105 @@ def export_programas_excel(
         years = [y.strip() for y in str(year).split(',') if y.strip()]
         if years:
             if len(years) == 1:
-                clauses.append('YEAR(fecha_corte) = :year_0')
+                clauses.append('YEAR(p.fecha_corte) = :year_0')
             else:
                 in_keys = []
                 for i, val in enumerate(years):
                     key = f'year_{i}'
                     in_keys.append(f':{key}')
                     params[key] = int(val)
-                clauses.append('YEAR(fecha_corte) IN (' + ','.join(in_keys) + ')')
+                clauses.append('YEAR(p.fecha_corte) IN (' + ','.join(in_keys) + ')')
             if 'year_0' not in params and years:
                 params['year_0'] = int(years[0])
     if municipio:
         municipios = [m.strip().lower() for m in str(municipio).split(',') if m.strip()]
         if municipios:
             if len(municipios) == 1:
-                clauses.append('LOWER(TRIM(ciudad_municipio)) = :municipio_0')
+                clauses.append('LOWER(TRIM(p.ciudad_municipio)) = :municipio_0')
             else:
                 in_keys = []
                 for i, val in enumerate(municipios):
                     key = f'municipio_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.ciudad_municipio)) IN (' + ','.join(in_keys) + ')')
             if 'municipio_0' not in params and municipios:
                 params['municipio_0'] = municipios[0]
     if centro:
         centros = [c.strip().lower() for c in str(centro).split(',') if c.strip()]
         if centros:
             if len(centros) == 1:
-                clauses.append('LOWER(TRIM(centro_formacion)) = :centro_0')
+                clauses.append('LOWER(TRIM(p.centro_formacion)) = :centro_0')
             else:
                 in_keys = []
                 for i, val in enumerate(centros):
                     key = f'centro_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(centro_formacion)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.centro_formacion)) IN (' + ','.join(in_keys) + ')')
             if 'centro_0' not in params and centros:
                 params['centro_0'] = centros[0]
     if estrategia:
         estrategias = [e.strip().lower() for e in str(estrategia).split(',') if e.strip()]
         if estrategias:
             if len(estrategias) == 1:
-                clauses.append('LOWER(TRIM(estrategia_programa)) = :estrategia_0')
+                clauses.append('LOWER(TRIM(p.estrategia_programa)) = :estrategia_0')
             else:
                 in_keys = []
                 for i, val in enumerate(estrategias):
                     key = f'estrategia_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(estrategia_programa)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.estrategia_programa)) IN (' + ','.join(in_keys) + ')')
             if 'estrategia_0' not in params and estrategias:
                 params['estrategia_0'] = estrategias[0]
     if convenio:
         convenios = [c.strip().lower() for c in str(convenio).split(',') if c.strip()]
         if convenios:
             if len(convenios) == 1:
-                clauses.append('LOWER(TRIM(convenio)) = :convenio_0')
+                clauses.append('LOWER(TRIM(p.convenio)) = :convenio_0')
             else:
                 in_keys = []
                 for i, val in enumerate(convenios):
                     key = f'convenio_{i}'
                     in_keys.append(f':{key}')
                     params[key] = val
-                clauses.append('LOWER(TRIM(convenio)) IN (' + ','.join(in_keys) + ')')
+                clauses.append('LOWER(TRIM(p.convenio)) IN (' + ','.join(in_keys) + ')')
             if 'convenio_0' not in params and convenios:
                 params['convenio_0'] = convenios[0]
     if vigencia is not None:
         vigencias = [v.strip() for v in str(vigencia).split(',') if v.strip()]
         if vigencias:
             if len(vigencias) == 1:
-                clauses.append('YEAR(fecha_inicio) = :vigencia_0')
+                clauses.append('YEAR(p.fecha_inicio) = :vigencia_0')
             else:
                 in_keys = []
                 for i, val in enumerate(vigencias):
                     key = f'vigencia_{i}'
                     in_keys.append(f':{key}')
                     params[key] = int(val)
-                clauses.append('YEAR(fecha_inicio) IN (' + ','.join(in_keys) + ')')
+                clauses.append('YEAR(p.fecha_inicio) IN (' + ','.join(in_keys) + ')')
             if 'vigencia_0' not in params and vigencias:
                 params['vigencia_0'] = int(vigencias[0])
     if numero_ficha is not None:
-        clauses.append('numero_ficha = :numero_ficha')
+        clauses.append('p.numero_ficha = :numero_ficha')
         params['numero_ficha'] = int(numero_ficha)
     if search:
         s = str(search).strip().lower()
         if s:
-            clauses.append('LOWER(TRIM(denominacion_programa)) LIKE :search')
+            clauses.append('LOWER(TRIM(p.denominacion_programa)) LIKE :search')
             params['search'] = f'%{s}%'
     if solo_certificados and str(solo_certificados).strip().lower() not in {'0', 'false', 'no'}:
-        clauses.append('(certificado IS NOT NULL AND certificado <> 0)')
+        clauses.append('(p.certificado IS NOT NULL AND p.certificado <> 0)')
 
     where_sql = ''
     if clauses:
         where_sql = ' WHERE ' + ' AND '.join(clauses)
 
     sql = (
-        'SELECT * FROM programas_formacion'
+        get_programas_select_sql() +
         f'{where_sql} '
-        'ORDER BY fecha_corte DESC, numero_ficha ASC, id ASC'
+        'ORDER BY p.fecha_corte DESC, p.numero_ficha ASC, p.id ASC'
     )
 
     try:
@@ -4793,6 +4891,7 @@ async def _process_pe04(df: pd.DataFrame):
         'TIPO_DE_FORMACION': 'tipo_formacion',
         'MODALIDAD_FORMACION': 'modalidad_formacion',
         'ESTADO_CURSO': 'estado_curso',
+        'NOMBRE_EMPRESA': 'nombre_empresa',
     }
 
     # Crear nuevo DataFrame con solo las columnas que necesitamos
@@ -4808,6 +4907,11 @@ async def _process_pe04(df: pd.DataFrame):
     # Agregar certificado y fecha_corte como columnas vacías (no existen en el Excel)
     df_mapped['certificado'] = None
     df_mapped['fecha_corte'] = None
+    
+    # Inicializar columnas nuevas que se calcularán
+    df_mapped['aprendices_matriculados'] = None
+    df_mapped['fecha_inicio_etapa_productiva'] = None
+    df_mapped['vigencia_aprendices'] = None
     
     # Agregar clasificación de programa especial basada en los datos del Excel
     # Obtener NOMBRE_PROGRAMA_ESPECIAL del DataFrame original si existe
@@ -4826,6 +4930,90 @@ async def _process_pe04(df: pd.DataFrame):
         )
         for i in range(len(df_mapped))
     ]
+    
+    # Calcular fecha_inicio_etapa_productiva basada en nivel_formacion y fecha_fin
+    # Y asignar vigencia_aprendices basada en fecha_inicio
+    from datetime import datetime as dt, timedelta
+    from dateutil.relativedelta import relativedelta
+    
+    def calcular_inicio_etapa_productiva(nivel, fecha_fin):
+        """Calcula la fecha de inicio de etapa productiva según el nivel de formación"""
+        if pd.isna(fecha_fin) or fecha_fin is None:
+            return None
+        
+        try:
+            # Convertir a date si es necesario
+            if isinstance(fecha_fin, str):
+                for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d']:
+                    try:
+                        fecha_fin = dt.strptime(fecha_fin.strip(), fmt).date()
+                        break
+                    except:
+                        pass
+            elif isinstance(fecha_fin, dt):
+                fecha_fin = fecha_fin.date()
+            
+            if not isinstance(fecha_fin, (dt.date() if hasattr(dt, 'date') else date.__class__)):
+                return None
+            
+            nivel_str = str(nivel).strip().upper() if nivel else ""
+            
+            # Aplicar lógica según nivel
+            if nivel_str in ['TECNÓLOGO', 'TECNICO', 'TÉCNICO']:
+                # 6 meses atrás
+                fecha_inicio = fecha_fin - relativedelta(months=6)
+            elif nivel_str in ['OPERARIO', 'AUXILIAR']:
+                # 3 meses atrás
+                fecha_inicio = fecha_fin - relativedelta(months=3)
+            else:
+                # Para otros niveles: "No aplica" se manejará después
+                return None
+            
+            return fecha_inicio
+        except Exception as e:
+            print(f"Error calculando etapa productiva: {e}")
+            return None
+    
+    # Aplicar cálculo de etapa productiva
+    df_mapped['fecha_inicio_etapa_productiva'] = [
+        calcular_inicio_etapa_productiva(
+            df_mapped['nivel_formacion'].iloc[i],
+            df_mapped['fecha_fin'].iloc[i]
+        ) if i < len(df_mapped) else None
+        for i in range(len(df_mapped))
+    ]
+    
+    # Asignar vigencia basada en fecha_inicio
+    def extraer_vigencia(fecha_inicio):
+        """Extrae el año de la fecha de inicio como vigencia"""
+        try:
+            if pd.isna(fecha_inicio) or fecha_inicio is None:
+                return None
+            
+            if isinstance(fecha_inicio, str):
+                for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d']:
+                    try:
+                        fecha = dt.strptime(fecha_inicio.strip(), fmt).date()
+                        return fecha.year
+                    except:
+                        pass
+            elif isinstance(fecha_inicio, dt):
+                return fecha_inicio.year
+            elif hasattr(fecha_inicio, 'year'):
+                return fecha_inicio.year
+            
+            return None
+        except:
+            return None
+    
+    df_mapped['vigencia_aprendices'] = [
+        extraer_vigencia(df_mapped['fecha_inicio'].iloc[i]) if i < len(df_mapped) else None
+        for i in range(len(df_mapped))
+    ]
+    
+    # Por ahora, aprendices_matriculados será igual a aprendices_activos
+    # Se actualizará con lógica más compleja después en el procesamiento de la base de datos
+    df_mapped['aprendices_matriculados'] = df_mapped['aprendices_activos'].copy()
 
     # Limpiar datos
     def clean_value(val, col_type='text'):
@@ -4864,8 +5052,8 @@ async def _process_pe04(df: pd.DataFrame):
             return text if text else None
 
     # Aplicar limpieza específica por tipo de columna
-    date_cols = ['fecha_inicio', 'fecha_fin', 'fecha_corte']
-    int_cols = ['numero_ficha', 'cupos', 'aprendices_activos']
+    date_cols = ['fecha_inicio', 'fecha_fin', 'fecha_corte', 'fecha_inicio_etapa_productiva']
+    int_cols = ['numero_ficha', 'cupos', 'aprendices_activos', 'aprendices_matriculados', 'vigencia_aprendices']
     
     for col in df_mapped.columns:
         if col in date_cols:
@@ -4984,12 +5172,16 @@ async def get_pe04_data():
                     convenio,
                     cupos,
                     aprendices_activos,
+                    aprendices_matriculados,
                     certificado,
                     tipo_formacion,
                     modalidad_formacion,
                     estado_curso,
                     fecha_corte,
                     clasificacion_programa_especial,
+                    nombre_empresa,
+                    fecha_inicio_etapa_productiva,
+                    vigencia_aprendices,
                     fecha_carga
                 FROM programas_formacion_seguimiento_pe04
                 ORDER BY fecha_carga DESC
