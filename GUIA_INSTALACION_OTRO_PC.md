@@ -83,11 +83,14 @@ Donde:
 
 ## 4. Crear el entorno virtual (carpeta `oferta`)
 
-Ingresa a la carpeta del proyecto y ejecute el archivo instalar_entorno_oferta
+1. Ingresa a la carpeta del proyecto y ejecute el archivo instalar_entorno_oferta
+
+2. Inicie el Programa desde el ejecutable iniciar_sistema
+  - Al momento de inicializarlo se abrira la terminal de comando (no cerrarla mientras se este usando la aplicacion)
 
 ---
 
-De querer hacer manual sigue los siguientes pasos 
+DE QUERER HACERLO MANUAL SIGA LOS SIGUIENTES PASOS:
 
 1. Ve a la carpeta del backend:
 
@@ -157,14 +160,6 @@ Si prefieres usar CMD clásico:
 cd /d C:\RUTA\DEL\PROYECTO\fastapi_app
 oferta\Scripts\activate.bat
 ```
-
-Para desactivar el entorno (PowerShell o CMD):
-
-```bash
-
-```
-
----
 
 ## 6. Instalar los requisitos del backend
 
