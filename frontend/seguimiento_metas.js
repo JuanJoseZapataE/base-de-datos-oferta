@@ -435,8 +435,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const pe04Section = document.getElementById('pe04Section');
   const subidaArchivosNavbar = document.getElementById('subidaArchivosNavbar');
   const seguimientoMetasSection = document.getElementById('seguimientoMetasModuleSection');
+  const registroMetasSection = document.getElementById('registroMetasModuleSection');
   const toggleSubidaArchivosBtn = document.getElementById('toggleSubidaArchivosSection');
   const toggleSeguimientoMetasBtn = document.getElementById('toggleSeguimientoMetasModuleBtn');
+  const toggleRegistroMetasBtn = document.getElementById('toggleRegistroMetasModuleBtn');
 
   // ===== Ocultar todas las secciones de subida de archivos por defecto =====
   if (catalogoSection) catalogoSection.style.display = 'none';
@@ -1021,31 +1023,40 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ===== EVENTOS PARA NAVBAR PRINCIPAL =====
+
+  function hideAllMainModuleSections() {
+    if (subidaArchivosNavbar) subidaArchivosNavbar.style.display = 'none';
+    if (catalogoSection) catalogoSection.style.display = 'none';
+    if (registroSection) registroSection.style.display = 'none';
+    if (ofertaSection) ofertaSection.style.display = 'none';
+    if (consolidadoSection) consolidadoSection.style.display = 'none';
+    if (pe04Section) pe04Section.style.display = 'none';
+    if (seguimientoMetasSection) seguimientoMetasSection.style.display = 'none';
+    if (registroMetasSection) registroMetasSection.style.display = 'none';
+  }
+
+  function deactivateMainNavButtons() {
+    [toggleSubidaArchivosBtn, toggleSeguimientoMetasBtn, toggleRegistroMetasBtn].forEach((btn) => {
+      if (btn) {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+      }
+    });
+  }
   
   // Toggle para "Subida de Archivos" - Muestra/Oculta el navbar secundario
   if (toggleSubidaArchivosBtn && subidaArchivosNavbar) {
     toggleSubidaArchivosBtn.addEventListener('click', () => {
-      // Mostrar navbar secundario
+      hideAllMainModuleSections();
       subidaArchivosNavbar.style.display = 'block';
-      
-      // Mostrar solo la primera sección (Catálogo) y ocultar las demás
       if (catalogoSection) catalogoSection.style.display = 'block';
-      if (registroSection) registroSection.style.display = 'none';
-      if (ofertaSection) ofertaSection.style.display = 'none';
-      if (consolidadoSection) consolidadoSection.style.display = 'none';
-      if (pe04Section) pe04Section.style.display = 'none';
       
-      // Ocultar módulo de Seguimiento a Metas
-      if (seguimientoMetasSection) seguimientoMetasSection.style.display = 'none';
-      
-      // Activar el botón de Catálogo en el navbar secundario
       const catalogoBtn = document.getElementById('toggleSectionBtn');
       if (catalogoBtn) {
         catalogoBtn.classList.add('active');
         catalogoBtn.setAttribute('aria-pressed', 'true');
       }
       
-      // Desactivar otros botones del navbar secundario
       ['toggleRegistroSection', 'toggleOfertaSection', 'toggleConsolidadoSection', 'togglePe04Section'].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) {
@@ -1054,41 +1065,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
       
-      // Actualizar estados de botones del navbar principal
+      deactivateMainNavButtons();
       toggleSubidaArchivosBtn.classList.add('active');
       toggleSubidaArchivosBtn.setAttribute('aria-pressed', 'true');
-      if (toggleSeguimientoMetasBtn) {
-        toggleSeguimientoMetasBtn.classList.remove('active');
-        toggleSeguimientoMetasBtn.setAttribute('aria-pressed', 'false');
-      }
     });
   }
 
   // Toggle para "Seguimiento a las Metas" - Muestra/Oculta el nuevo módulo
   if (toggleSeguimientoMetasBtn && seguimientoMetasSection) {
     toggleSeguimientoMetasBtn.addEventListener('click', () => {
-      // Mostrar módulo de Seguimiento a Metas
+      hideAllMainModuleSections();
       seguimientoMetasSection.style.display = 'block';
-      
-      // Ocultar navbar secundario y todas las secciones de subida de archivos
-      subidaArchivosNavbar.style.display = 'none';
-      if (catalogoSection) catalogoSection.style.display = 'none';
-      if (registroSection) registroSection.style.display = 'none';
-      if (ofertaSection) ofertaSection.style.display = 'none';
-      if (consolidadoSection) consolidadoSection.style.display = 'none';
-      if (pe04Section) pe04Section.style.display = 'none';
-      
-      // Cargar datos de aprendices al mostrar la sección
       loadModalidades();
       loadEspeciales();
-      
-      // Actualizar estados de botones
+      deactivateMainNavButtons();
       toggleSeguimientoMetasBtn.classList.add('active');
       toggleSeguimientoMetasBtn.setAttribute('aria-pressed', 'true');
-      if (toggleSubidaArchivosBtn) {
-        toggleSubidaArchivosBtn.classList.remove('active');
-        toggleSubidaArchivosBtn.setAttribute('aria-pressed', 'false');
-      }
+    });
+  }
+
+  // Toggle para "Registro Metas"
+  if (toggleRegistroMetasBtn && registroMetasSection) {
+    toggleRegistroMetasBtn.addEventListener('click', () => {
+      hideAllMainModuleSections();
+      registroMetasSection.style.display = 'block';
+      loadRegistroMetasList();
+      loadGruposMetasList();
+      deactivateMainNavButtons();
+      toggleRegistroMetasBtn.classList.add('active');
+      toggleRegistroMetasBtn.setAttribute('aria-pressed', 'true');
     });
   }
 
@@ -1376,5 +1381,243 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Cargar datos de PE_04 al iniciar si existen
   loadPe04Data();
+
+  // ===== MÓDULO REGISTRO METAS =====
+
+  const CENTROS_LABELS = {
+    '9308': '9308 - CENTRO DE COMERCIO Y SERVICIOS',
+    '9121': '9121 - CENTRO ATENCION SECTOR AGROPECUARIO',
+    '9223': '9223 - CENTRO DE DISEÑO E INNOVACIÓN TECNOLÓGICA INDUSTRIAL'
+  };
+
+  function showRegistroMetaFormStatus(message, type = 'secondary') {
+    const el = document.getElementById('registroMetaFormStatus');
+    if (!el) return;
+    el.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${escapeHtml(message)}</div>`;
+  }
+
+  function showRegistroMetasGrupoStatus(message, type = 'secondary') {
+    const el = document.getElementById('registroMetasGrupoStatus');
+    if (!el) return;
+    el.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${escapeHtml(message)}</div>`;
+  }
+
+  function isNumericFieldValue(value) {
+    return /^\d+$/.test(String(value || '').trim());
+  }
+
+  function bindNumericOnlyInput(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/\D/g, '');
+    });
+  }
+
+  ['metaCodigoNivelFormacion', 'metaCodigoProgramaEspecial', 'metaCodigoConvenio', 'metaCupos'].forEach(bindNumericOnlyInput);
+
+  function getSelectedMetaIds() {
+    return Array.from(document.querySelectorAll('.meta-select-checkbox:checked'))
+      .map((el) => Number(el.value))
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  function updateCrearGrupoButtonState() {
+    const btn = document.getElementById('crearGrupoMetasBtn');
+    if (!btn) return;
+    btn.disabled = getSelectedMetaIds().length === 0;
+  }
+
+  function renderRegistroMetasTable(rows) {
+    const tbody = document.getElementById('registroMetasTableBody');
+    const totalEl = document.getElementById('registroMetasTotal');
+    if (!tbody) return;
+
+    if (totalEl) totalEl.textContent = String(rows.length);
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Sin metas registradas</td></tr>';
+      updateCrearGrupoButtonState();
+      return;
+    }
+
+    tbody.innerHTML = rows.map((row) => {
+      const enGrupo = row.grupo_id ? true : false;
+      const centroLabel = row.centro_formacion || CENTROS_LABELS[row.codigo_centro] || row.codigo_centro || '—';
+      return `
+        <tr>
+          <td>
+            <input
+              type="checkbox"
+              class="form-check-input meta-select-checkbox"
+              value="${row.id}"
+              ${enGrupo ? 'disabled title="Ya pertenece a un grupo"' : ''}
+              style="width:22px; height:22px; border:2px solid #444; border-radius:4px; cursor:pointer; box-shadow:0 0 2px rgba(0,0,0,.4);"
+              >I
+          </td>
+          <td><strong>${row.id}</strong></td>
+          <td>${escapeHtml(row.nombre_meta)}</td>
+          <td>${escapeHtml(row.tipo_formacion)}</td>
+          <td><span class="badge bg-info">${escapeHtml(row.tipo_modalidad)}</span></td>
+          <td><strong>${row.meta_cupos || 0}</strong></td>
+          <td><small>${escapeHtml(centroLabel)}</small></td>
+          <td>${row.grupo_id ? `<span class="badge bg-primary">Grupo ${row.grupo_id}</span>` : '<span class="text-muted">—</span>'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    document.querySelectorAll('.meta-select-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', updateCrearGrupoButtonState);
+    });
+    updateCrearGrupoButtonState();
+  }
+
+  async function loadRegistroMetasList() {
+    try {
+      showRegistroMetasGrupoStatus('Cargando metas...', 'info');
+      const resp = await fetch(`${API_BASE}/registro-metas/lista`);
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+      }
+      renderRegistroMetasTable(Array.isArray(data?.items) ? data.items : []);
+      showRegistroMetasGrupoStatus(`Se cargaron ${data?.total || 0} metas.`, 'success');
+    } catch (error) {
+      renderRegistroMetasTable([]);
+      showRegistroMetasGrupoStatus(`Error al cargar metas: ${error.message}`, 'danger');
+    }
+  }
+
+  function renderGruposMetasTable(rows) {
+    const tbody = document.getElementById('gruposMetasTableBody');
+    if (!tbody) return;
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Sin grupos creados</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map((row) => `
+      <tr>
+        <td><strong>${row.id}</strong></td>
+        <td>${escapeHtml(row.nombre_grupo)}</td>
+        <td>${row.cantidad_metas || 0}</td>
+        <td><span class="badge bg-success">${row.total_cupos || 0}</span></td>
+        <td><small>${escapeHtml(row.fecha_creacion || '—')}</small></td>
+      </tr>
+    `).join('');
+  }
+
+  async function loadGruposMetasList() {
+    try {
+      const resp = await fetch(`${API_BASE}/registro-metas/grupos`);
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+      }
+      renderGruposMetasTable(Array.isArray(data?.items) ? data.items : []);
+    } catch (error) {
+      renderGruposMetasTable([]);
+    }
+  }
+
+  async function submitRegistroMeta(event) {
+    event.preventDefault();
+
+    const tipoFormacion = document.getElementById('metaTipoFormacion')?.value.trim();
+    const codigoNivel = document.getElementById('metaCodigoNivelFormacion')?.value.trim();
+    const codigoPrograma = document.getElementById('metaCodigoProgramaEspecial')?.value.trim();
+    const codigoConvenio = document.getElementById('metaCodigoConvenio')?.value.trim();
+    const tipoModalidad = document.getElementById('metaTipoModalidad')?.value.trim();
+    const nombreMeta = document.getElementById('metaNombre')?.value.trim();
+    const metaCupos = document.getElementById('metaCupos')?.value.trim();
+    const codigoCentro = document.getElementById('metaCentroFormacion')?.value.trim();
+
+    if (!tipoFormacion || !tipoModalidad || !nombreMeta || !codigoCentro) {
+      showRegistroMetaFormStatus('Completa todos los campos obligatorios.', 'warning');
+      return;
+    }
+
+    if (![codigoNivel, codigoPrograma, codigoConvenio, metaCupos].every(isNumericFieldValue)) {
+      showRegistroMetaFormStatus('Los campos numéricos solo deben contener números.', 'warning');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('tipo_formacion', tipoFormacion);
+    formData.append('codigo_nivel_formacion', codigoNivel);
+    formData.append('codigo_programa_especial', codigoPrograma);
+    formData.append('codigo_convenio', codigoConvenio);
+    formData.append('tipo_modalidad', tipoModalidad);
+    formData.append('nombre_meta', nombreMeta);
+    formData.append('meta_cupos', metaCupos);
+    formData.append('codigo_centro', codigoCentro);
+    formData.append('centro_formacion', CENTROS_LABELS[codigoCentro] || codigoCentro);
+
+    try {
+      showRegistroMetaFormStatus('Guardando meta...', 'info');
+      const resp = await fetch(`${API_BASE}/registro-metas/crear`, { method: 'POST', body: formData });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+      }
+      showRegistroMetaFormStatus(`Meta registrada correctamente (ID ${data.id}).`, 'success');
+      document.getElementById('registroMetaForm')?.reset();
+      await loadRegistroMetasList();
+    } catch (error) {
+      showRegistroMetaFormStatus(`Error al registrar meta: ${error.message}`, 'danger');
+    }
+  }
+
+  async function crearGrupoMetas() {
+    const selectedIds = getSelectedMetaIds();
+    if (!selectedIds.length) {
+      showRegistroMetasGrupoStatus('Selecciona al menos una meta para crear el grupo.', 'warning');
+      return;
+    }
+
+    const nombreGrupo = (document.getElementById('nombreGrupoMetas')?.value || '').trim();
+    if (!nombreGrupo) {
+      showRegistroMetasGrupoStatus('Escribe un nombre para el grupo.', 'warning');
+      return;
+    }
+
+    try {
+      showRegistroMetasGrupoStatus('Creando grupo...', 'info');
+      const resp = await fetch(`${API_BASE}/registro-metas/crear-grupo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre_grupo: nombreGrupo, meta_ids: selectedIds })
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+      }
+      showRegistroMetasGrupoStatus(
+        `Grupo "${nombreGrupo}" creado. Metas: ${data.cantidad_metas}, total cupos: ${data.total_cupos}.`,
+        'success'
+      );
+      document.getElementById('nombreGrupoMetas').value = '';
+      const selectAll = document.getElementById('selectAllMetasCheckbox');
+      if (selectAll) selectAll.checked = false;
+      await loadRegistroMetasList();
+      await loadGruposMetasList();
+    } catch (error) {
+      showRegistroMetasGrupoStatus(`Error al crear grupo: ${error.message}`, 'danger');
+    }
+  }
+
+  document.getElementById('registroMetaForm')?.addEventListener('submit', submitRegistroMeta);
+  document.getElementById('reloadRegistroMetasBtn')?.addEventListener('click', loadRegistroMetasList);
+  document.getElementById('reloadGruposMetasBtn')?.addEventListener('click', loadGruposMetasList);
+  document.getElementById('crearGrupoMetasBtn')?.addEventListener('click', crearGrupoMetas);
+
+  document.getElementById('selectAllMetasCheckbox')?.addEventListener('change', (event) => {
+    const checked = event.target.checked;
+    document.querySelectorAll('.meta-select-checkbox:not(:disabled)').forEach((checkbox) => {
+      checkbox.checked = checked;
+    });
+    updateCrearGrupoButtonState();
+  });
 });
 

@@ -87,6 +87,7 @@ Donde:
 
 2. Inicie el Programa desde el ejecutable iniciar_sistema
   - Al momento de inicializarlo se abrira la terminal de comando (no cerrarla mientras se este usando la aplicacion)
+  - Recuerda recargar la pagina cuando en la terminal aparezca 200 OK
 
 ---
 

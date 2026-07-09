@@ -173,7 +173,7 @@
     </div>
 
     <div class="container my-5">
-      <!-- NAVBAR PRINCIPAL CON 2 OPCIONES -->
+      <!-- NAVBAR PRINCIPAL -->
       <nav class="module-navbar navbar navbar-expand-lg px-3 py-3 mb-4" aria-label="Navegación del módulo seguimiento metas">
         <div class="container-fluid p-0 gap-3 flex-wrap">
           <div>
@@ -183,6 +183,7 @@
           <div class="module-toggles ms-lg-auto">
             <button id="toggleSubidaArchivosSection" class="nav-link" type="button" aria-pressed="false">📤 Subida de Archivos</button>
             <button id="toggleSeguimientoMetasModuleBtn" class="nav-link" type="button" aria-pressed="false">🎯 Seguimiento a las Metas</button>
+            <button id="toggleRegistroMetasModuleBtn" class="nav-link" type="button" aria-pressed="false">📋 Registro Metas</button>
           </div>
         </div>
       </nav>
@@ -696,6 +697,153 @@
                   </thead>
                   <tbody id="pe04TableBody">
                     <tr><td colspan="18" class="text-center text-muted py-4">Sin registros</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SECCIÓN: REGISTRO METAS ===== -->
+      <div id="registroMetasModuleSection" style="display: none;">
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="card panel-card p-4 h-100">
+              <div class="text-center mb-4">
+                <h2 class="mb-2" style="color: #005a24; font-weight: 700;">📋 Registro Metas</h2>
+                <p class="text-muted mb-0">Registra cada meta de formación de forma individual</p>
+              </div>
+
+              <form id="registroMetaForm" novalidate>
+                <div class="mb-3">
+                  <label for="metaTipoFormacion" class="form-label">Tipo de formación</label>
+                  <select id="metaTipoFormacion" class="form-select" required>
+                    <option value="">-- Seleccione --</option>
+                    <option value="Titulada">Titulada</option>
+                    <option value="Complementaria">Complementaria</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label for="metaCodigoNivelFormacion" class="form-label">Código nivel de formación</label>
+                  <input id="metaCodigoNivelFormacion" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números" required>
+                </div>
+
+                <div class="mb-3">
+                  <label for="metaCodigoProgramaEspecial" class="form-label">Código programa especial</label>
+                  <input id="metaCodigoProgramaEspecial" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números" required>
+                </div>
+
+                <div class="mb-3">
+                  <label for="metaCodigoConvenio" class="form-label">Código convenio</label>
+                  <input id="metaCodigoConvenio" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números" required>
+                </div>
+
+                <div class="mb-3">
+                  <label for="metaTipoModalidad" class="form-label">Tipo modalidad</label>
+                  <select id="metaTipoModalidad" class="form-select" required>
+                    <option value="">-- Seleccione --</option>
+                    <option value="PRESENCIAL">PRESENCIAL</option>
+                    <option value="A DISTANCIA">A DISTANCIA</option>
+                    <option value="VIRTUAL">VIRTUAL</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label for="metaNombre" class="form-label">Nombre de la meta</label>
+                  <input id="metaNombre" type="text" class="form-control" placeholder="Nombre de la meta" required>
+                </div>
+
+                <div class="mb-3">
+                  <label for="metaCupos" class="form-label">Meta cupos</label>
+                  <input id="metaCupos" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números" required>
+                </div>
+
+                <div class="mb-3">
+                  <label for="metaCentroFormacion" class="form-label">Centro de formación</label>
+                  <select id="metaCentroFormacion" class="form-select" required>
+                    <option value="">-- Seleccione --</option>
+                    <option value="9308">9308 - CENTRO DE COMERCIO Y SERVICIOS</option>
+                    <option value="9121">9121 - CENTRO ATENCION SECTOR AGROPECUARIO</option>
+                    <option value="9223">9223 - CENTRO DE DISEÑO E INNOVACIÓN TECNOLÓGICA INDUSTRIAL</option>
+                  </select>
+                </div>
+
+                <button id="agregarMetaBtn" type="submit" class="btn btn-success w-100">Agregar meta</button>
+              </form>
+
+              <div id="registroMetaFormStatus" class="mt-3 small"></div>
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="card panel-card p-4 h-100">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3 flex-wrap">
+                <div>
+                  <h5 class="mb-1">Dashboard de Metas</h5>
+                  <p class="text-muted mb-0">Metas registradas: <strong id="registroMetasTotal">0</strong></p>
+                </div>
+                <button id="reloadRegistroMetasBtn" class="btn btn-outline-secondary btn-sm" type="button">Actualizar lista</button>
+              </div>
+
+              <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-8">
+                  <label for="nombreGrupoMetas" class="form-label">Nombre del grupo</label>
+                  <input id="nombreGrupoMetas" type="text" class="form-control" placeholder="Ej: Grupo Titulada Presencial 2026">
+                </div>
+                <div class="col-md-4 d-grid">
+                  <button id="crearGrupoMetasBtn" class="btn btn-success" type="button" disabled>Crear grupo</button>
+                </div>
+              </div>
+
+              <div id="registroMetasGrupoStatus" class="mb-3 small"></div>
+
+              <div class="table-responsive" style="max-height: 55vh;">
+                <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                  <thead class="sticky-top">
+                    <tr>
+                      <th style="min-width: 40px;">
+                        <input id="selectAllMetasCheckbox" type="checkbox" class="form-check-input" title="Seleccionar todas">
+                      </th>
+                      <th style="min-width: 50px;">ID</th>
+                      <th style="min-width: 140px;">Nombre meta</th>
+                      <th style="min-width: 90px;">Tipo formación</th>
+                      <th style="min-width: 90px;">Modalidad</th>
+                      <th style="min-width: 80px;">Cupos</th>
+                      <th style="min-width: 160px;">Centro</th>
+                      <th style="min-width: 90px;">Grupo</th>
+                    </tr>
+                  </thead>
+                  <tbody id="registroMetasTableBody">
+                    <tr><td colspan="8" class="text-center text-muted py-4">Sin metas registradas</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="card panel-card p-4">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Grupos creados</h5>
+                <button id="reloadGruposMetasBtn" class="btn btn-outline-secondary btn-sm" type="button">Actualizar grupos</button>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0 table-catalog">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nombre del grupo</th>
+                      <th>Cantidad metas</th>
+                      <th>Total cupos</th>
+                      <th>Fecha creación</th>
+                    </tr>
+                  </thead>
+                  <tbody id="gruposMetasTableBody">
+                    <tr><td colspan="5" class="text-center text-muted py-4">Sin grupos creados</td></tr>
                   </tbody>
                 </table>
               </div>

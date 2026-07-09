@@ -260,3 +260,34 @@ CREATE TABLE IF NOT EXISTS `programas_formacion_seguimiento_pe04` (
     INDEX `idx_pe04_clasificacion` (`clasificacion_programa_especial`),
     INDEX `idx_pe04_fecha_carga` (`fecha_carga`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabla para registro individual de metas (módulo Registro Metas)
+CREATE TABLE IF NOT EXISTS `registro_metas_individuales` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `tipo_formacion` VARCHAR(50) NOT NULL,
+    `codigo_nivel_formacion` VARCHAR(20) NOT NULL,
+    `codigo_programa_especial` VARCHAR(20) NOT NULL,
+    `codigo_convenio` VARCHAR(20) NOT NULL,
+    `tipo_modalidad` VARCHAR(50) NOT NULL,
+    `nombre_meta` VARCHAR(255) NOT NULL,
+    `meta_cupos` INT NOT NULL,
+    `codigo_centro` VARCHAR(20) NOT NULL,
+    `centro_formacion` VARCHAR(255) NOT NULL,
+    `archivo_excel` VARCHAR(500) NULL,
+    `grupo_id` BIGINT NULL,
+    `fecha_registro` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_registro_metas_grupo` (`grupo_id`),
+    INDEX `idx_registro_metas_centro` (`codigo_centro`),
+    INDEX `idx_registro_metas_modalidad` (`tipo_modalidad`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabla para grupos de metas consolidadas
+CREATE TABLE IF NOT EXISTS `grupos_metas` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `nombre_grupo` VARCHAR(255) NOT NULL,
+    `total_cupos` INT NOT NULL DEFAULT 0,
+    `cantidad_metas` INT NOT NULL DEFAULT 0,
+    `archivo_consolidado` VARCHAR(500) NULL,
+    `fecha_creacion` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_grupos_metas_fecha` (`fecha_creacion`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

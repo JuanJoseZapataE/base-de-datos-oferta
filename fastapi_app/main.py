@@ -1003,6 +1003,225 @@ async def post_update_verificado(payload: VerificadoUpdateModel):
     return JSONResponse({'updated': count})
 
 
+# ============================================================================
+# ENDPOINTS PARA REGISTRO METAS INDIVIDUALES Y GRUPOS
+# ============================================================================
+
+def _ensure_registro_metas_tables():
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS registro_metas_individuales (
+                id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                tipo_formacion VARCHAR(50) NOT NULL,
+                codigo_nivel_formacion VARCHAR(20) NOT NULL,
+                codigo_programa_especial VARCHAR(20) NOT NULL,
+                codigo_convenio VARCHAR(20) NOT NULL,
+                tipo_modalidad VARCHAR(50) NOT NULL,
+                nombre_meta VARCHAR(255) NOT NULL,
+                meta_cupos INT NOT NULL,
+                codigo_centro VARCHAR(20) NOT NULL,
+                centro_formacion VARCHAR(255) NOT NULL,
+                archivo_excel VARCHAR(500) NULL,
+                grupo_id BIGINT NULL,
+                fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_registro_metas_grupo (grupo_id),
+                INDEX idx_registro_metas_centro (codigo_centro),
+                INDEX idx_registro_metas_modalidad (tipo_modalidad)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS grupos_metas (
+                id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                nombre_grupo VARCHAR(255) NOT NULL,
+                total_cupos INT NOT NULL DEFAULT 0,
+                cantidad_metas INT NOT NULL DEFAULT 0,
+                archivo_consolidado VARCHAR(500) NULL,
+                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_grupos_metas_fecha (fecha_creacion)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """))
+
+
+class CrearGrupoMetasModel(BaseModel):
+    nombre_grupo: str
+    meta_ids: List[int]
+
+
+@app.post('/registro-metas/crear')
+async def crear_registro_meta(
+    tipo_formacion: str = Form(...),
+    codigo_nivel_formacion: str = Form(...),
+    codigo_programa_especial: str = Form(...),
+    codigo_convenio: str = Form(...),
+    tipo_modalidad: str = Form(...),
+    nombre_meta: str = Form(...),
+    meta_cupos: str = Form(...),
+    codigo_centro: str = Form(...),
+    centro_formacion: str = Form(...),
+):
+    if tipo_formacion not in {'Titulada', 'Complementaria'}:
+        raise HTTPException(status_code=400, detail='Tipo de formación inválido')
+    if tipo_modalidad not in {'PRESENCIAL', 'A DISTANCIA', 'VIRTUAL'}:
+        raise HTTPException(status_code=400, detail='Tipo modalidad inválido')
+    if codigo_centro not in {'9308', '9121', '9223'}:
+        raise HTTPException(status_code=400, detail='Centro de formación inválido')
+
+    numeric_fields = {
+        'codigo_nivel_formacion': codigo_nivel_formacion,
+        'codigo_programa_especial': codigo_programa_especial,
+        'codigo_convenio': codigo_convenio,
+        'meta_cupos': meta_cupos,
+    }
+    for field_name, field_value in numeric_fields.items():
+        if not str(field_value).strip().isdigit():
+            raise HTTPException(status_code=400, detail=f'El campo {field_name} debe contener solo números')
+
+    nombre_meta = nombre_meta.strip()
+    if not nombre_meta:
+        raise HTTPException(status_code=400, detail='El nombre de la meta es obligatorio')
+
+    _ensure_registro_metas_tables()
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                INSERT INTO registro_metas_individuales (
+                    tipo_formacion, codigo_nivel_formacion, codigo_programa_especial,
+                    codigo_convenio, tipo_modalidad, nombre_meta, meta_cupos,
+                    codigo_centro, centro_formacion
+                ) VALUES (
+                    :tipo_formacion, :codigo_nivel_formacion, :codigo_programa_especial,
+                    :codigo_convenio, :tipo_modalidad, :nombre_meta, :meta_cupos,
+                    :codigo_centro, :centro_formacion
+                )
+            """), {
+                'tipo_formacion': tipo_formacion,
+                'codigo_nivel_formacion': codigo_nivel_formacion.strip(),
+                'codigo_programa_especial': codigo_programa_especial.strip(),
+                'codigo_convenio': codigo_convenio.strip(),
+                'tipo_modalidad': tipo_modalidad,
+                'nombre_meta': nombre_meta,
+                'meta_cupos': int(meta_cupos),
+                'codigo_centro': codigo_centro,
+                'centro_formacion': centro_formacion.strip(),
+            })
+            new_id = result.lastrowid
+        return JSONResponse({'id': new_id, 'message': 'Meta registrada correctamente'})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al registrar meta: {e}')
+
+
+@app.get('/registro-metas/lista')
+async def listar_registro_metas():
+    _ensure_registro_metas_tables()
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT
+                    id, tipo_formacion, codigo_nivel_formacion, codigo_programa_especial,
+                    codigo_convenio, tipo_modalidad, nombre_meta, meta_cupos,
+                    codigo_centro, centro_formacion, grupo_id, fecha_registro
+                FROM registro_metas_individuales
+                ORDER BY fecha_registro DESC, id DESC
+            """)).fetchall()
+            items = []
+            for row in rows:
+                item = dict(row._mapping)
+                if item.get('fecha_registro') is not None and hasattr(item['fecha_registro'], 'isoformat'):
+                    item['fecha_registro'] = item['fecha_registro'].isoformat(sep=' ', timespec='seconds')
+                items.append(item)
+            return JSONResponse(content=jsonable_encoder({'items': items, 'total': len(items)}))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al listar metas: {e}')
+
+
+@app.post('/registro-metas/crear-grupo')
+async def crear_grupo_metas(payload: CrearGrupoMetasModel):
+    nombre_grupo = (payload.nombre_grupo or '').strip()
+    if not nombre_grupo:
+        raise HTTPException(status_code=400, detail='El nombre del grupo es obligatorio')
+    if not payload.meta_ids:
+        raise HTTPException(status_code=400, detail='Debe seleccionar al menos una meta')
+
+    meta_ids = sorted({int(mid) for mid in payload.meta_ids if int(mid) > 0})
+    if not meta_ids:
+        raise HTTPException(status_code=400, detail='IDs de metas inválidos')
+
+    _ensure_registro_metas_tables()
+
+    try:
+        with engine.begin() as conn:
+            placeholders = ', '.join([f':id_{i}' for i in range(len(meta_ids))])
+            params = {f'id_{i}': meta_id for i, meta_id in enumerate(meta_ids)}
+            rows = conn.execute(text(f"""
+                SELECT id, meta_cupos, grupo_id
+                FROM registro_metas_individuales
+                WHERE id IN ({placeholders})
+            """), params).fetchall()
+
+            if len(rows) != len(meta_ids):
+                raise HTTPException(status_code=404, detail='Una o más metas seleccionadas no existen')
+
+            for row in rows:
+                if row.grupo_id is not None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f'La meta ID {row.id} ya pertenece al grupo {row.grupo_id}'
+                    )
+
+            total_cupos = sum(int(row.meta_cupos or 0) for row in rows)
+            cantidad_metas = len(rows)
+
+            grupo_result = conn.execute(text("""
+                INSERT INTO grupos_metas (nombre_grupo, total_cupos, cantidad_metas)
+                VALUES (:nombre_grupo, :total_cupos, :cantidad_metas)
+            """), {
+                'nombre_grupo': nombre_grupo,
+                'total_cupos': total_cupos,
+                'cantidad_metas': cantidad_metas,
+            })
+            grupo_id = grupo_result.lastrowid
+
+            conn.execute(text(f"""
+                UPDATE registro_metas_individuales
+                SET grupo_id = :grupo_id
+                WHERE id IN ({placeholders})
+            """), {**params, 'grupo_id': grupo_id})
+
+        return JSONResponse({
+            'id': grupo_id,
+            'nombre_grupo': nombre_grupo,
+            'total_cupos': total_cupos,
+            'cantidad_metas': cantidad_metas,
+            'message': 'Grupo creado correctamente',
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al crear grupo: {e}')
+
+
+@app.get('/registro-metas/grupos')
+async def listar_grupos_metas():
+    _ensure_registro_metas_tables()
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT id, nombre_grupo, total_cupos, cantidad_metas, fecha_creacion
+                FROM grupos_metas
+                ORDER BY fecha_creacion DESC, id DESC
+            """)).fetchall()
+            items = []
+            for row in rows:
+                item = dict(row._mapping)
+                if item.get('fecha_creacion') is not None and hasattr(item['fecha_creacion'], 'isoformat'):
+                    item['fecha_creacion'] = item['fecha_creacion'].isoformat(sep=' ', timespec='seconds')
+                items.append(item)
+            return JSONResponse(content=jsonable_encoder({'items': items, 'total': len(items)}))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error al listar grupos: {e}')
+
+
 @app.get('/')
 def root():
     return {'message': 'API running. Usa /docs para ver los endpoints.'}

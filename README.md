@@ -52,6 +52,7 @@ Permite además:
     - Primero por **nombre normalizado** (minúsculas, espacios → guiones bajos).
     - Si los nombres no coinciden, intenta mapear por **posición**, siempre que el número de columnas coincida con el esperado.
 - No hay autenticación ni validaciones avanzadas en esta versión.
+- El archivo debe tener una extension .xlsx
 
 ---
 
