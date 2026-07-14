@@ -150,6 +150,32 @@
         background-color: #e85d75 !important;
         color: #ffffff !important;
       }
+      .meta-detalle-modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1060;
+        padding: 1rem;
+      }
+      .meta-detalle-modal.show {
+        display: flex;
+      }
+      .meta-detalle-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+      }
+      .meta-detalle-dialog {
+        position: relative;
+        width: min(1100px, 100%);
+        max-height: 90vh;
+        overflow: auto;
+      }
+      .meta-detalle-content {
+        position: relative;
+      }
     </style>
   </head>
   <body>
@@ -705,14 +731,14 @@
         </div>
       </div>
 
-      <!-- ===== SECCIÓN: REGISTRO METAS ===== -->
+      <!-- ===== SECCIÓN: REGISTRO DE FILTROS ===== -->
       <div id="registroMetasModuleSection" style="display: none;">
         <div class="row g-3 mb-3">
           <div class="col-lg-5">
             <div class="card panel-card p-4 h-100">
               <div class="text-center mb-4">
-                <h2 class="mb-2" style="color: #005a24; font-weight: 700;">📋 Registro Metas</h2>
-                <p class="text-muted mb-0">Registra cada meta de formación de forma individual</p>
+                <h2 class="mb-2" style="color: #005a24; font-weight: 700;">📋 Registro de filtros</h2>
+                <p class="text-muted mb-0">Registra cada filtro y luego asígnalo a una meta si lo necesitas</p>
               </div>
 
               <form id="registroMetaForm" novalidate>
@@ -732,12 +758,14 @@
 
                 <div class="mb-3">
                   <label for="metaCodigoProgramaEspecial" class="form-label">Código programa especial</label>
-                  <input id="metaCodigoProgramaEspecial" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números" required>
+                  <input id="metaCodigoProgramaEspecial" type="text" class="form-control" placeholder="Ej: 1001, 1002, 1003" required>
+                  <div class="form-text">Puedes escribir varios códigos separados por coma, punto y coma o salto de línea.</div>
                 </div>
 
                 <div class="mb-3">
                   <label for="metaCodigoConvenio" class="form-label">Código convenio</label>
-                  <input id="metaCodigoConvenio" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números" required>
+                  <input id="metaCodigoConvenio" type="text" class="form-control" placeholder="Ej: 2001, 2002" required>
+                  <div class="form-text">También acepta varios convenios para el mismo filtro.</div>
                 </div>
 
                 <div class="mb-3">
@@ -752,12 +780,15 @@
 
                 <div class="mb-3">
                   <label for="metaNombre" class="form-label">Nombre de la meta</label>
-                  <input id="metaNombre" type="text" class="form-control" placeholder="Nombre de la meta" required>
+                  <input id="metaNombre" type="text" class="form-control" placeholder="Nombre del filtro" required>
                 </div>
 
                 <div class="mb-3">
-                  <label for="metaCupos" class="form-label">Meta cupos</label>
-                  <input id="metaCupos" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números" required>
+                  <label for="metaGrupoId" class="form-label">Meta asociada</label>
+                  <select id="metaGrupoId" class="form-select">
+                    <option value="">-- Sin meta --</option>
+                  </select>
+                  <div class="form-text">Si dejas esta opción vacía, el filtro queda sin meta asociada.</div>
                 </div>
 
                 <div class="mb-3">
@@ -770,7 +801,10 @@
                   </select>
                 </div>
 
-                <button id="agregarMetaBtn" type="submit" class="btn btn-success w-100">Agregar meta</button>
+                <div class="d-flex gap-2 flex-wrap">
+                  <button id="agregarMetaBtn" type="submit" class="btn btn-success flex-grow-1">Agregar filtro</button>
+                  <button id="cancelRegistroMetaEditBtn" type="button" class="btn btn-outline-secondary" style="display:none;">Cancelar edición</button>
+                </div>
               </form>
 
               <div id="registroMetaFormStatus" class="mt-3 small"></div>
@@ -781,19 +815,27 @@
             <div class="card panel-card p-4 h-100">
               <div class="d-flex justify-content-between align-items-start gap-2 mb-3 flex-wrap">
                 <div>
-                  <h5 class="mb-1">Dashboard de Metas</h5>
-                  <p class="text-muted mb-0">Metas registradas: <strong id="registroMetasTotal">0</strong></p>
+                  <h5 class="mb-1">Crear meta</h5>
+                  <p class="text-muted mb-0">Filtros registrados: <strong id="registroMetasTotal">0</strong></p>
                 </div>
-                <button id="reloadRegistroMetasBtn" class="btn btn-outline-secondary btn-sm" type="button">Actualizar lista</button>
+                <div class="d-flex gap-2 flex-wrap">
+                  <button id="reloadRegistroMetasBtn" class="btn btn-outline-secondary btn-sm" type="button">Actualizar lista</button>
+                  <button id="deleteAllRegistroMetasBtn" class="btn btn-outline-danger btn-sm" type="button">Eliminar todo</button>
+                </div>
               </div>
 
               <div class="row g-2 align-items-end mb-3">
                 <div class="col-md-8">
-                  <label for="nombreGrupoMetas" class="form-label">Nombre del grupo</label>
-                  <input id="nombreGrupoMetas" type="text" class="form-control" placeholder="Ej: Grupo Titulada Presencial 2026">
+                  <label for="nombreGrupoMetas" class="form-label">Nombre de la meta</label>
+                  <input id="nombreGrupoMetas" type="text" class="form-control" placeholder="Ej: Meta Titulada Presencial 2026">
                 </div>
-                <div class="col-md-4 d-grid">
-                  <button id="crearGrupoMetasBtn" class="btn btn-success" type="button" disabled>Crear grupo</button>
+                <div class="col-md-4">
+                  <label for="metaTotalCupos" class="form-label">Total cupos</label>
+                  <input id="metaTotalCupos" type="text" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números">
+                </div>
+                <div class="col-12 d-flex gap-2 flex-wrap">
+                  <button id="crearGrupoMetasBtn" class="btn btn-success" type="button" disabled>Crear meta</button>
+                  <button id="cancelRegistroGrupoEditBtn" class="btn btn-outline-secondary" type="button" style="display:none;">Cancelar edición</button>
                 </div>
               </div>
 
@@ -807,16 +849,18 @@
                         <input id="selectAllMetasCheckbox" type="checkbox" class="form-check-input" title="Seleccionar todas">
                       </th>
                       <th style="min-width: 50px;">ID</th>
-                      <th style="min-width: 140px;">Nombre meta</th>
+                      <th style="min-width: 140px;">Nombre filtro</th>
                       <th style="min-width: 90px;">Tipo formación</th>
                       <th style="min-width: 90px;">Modalidad</th>
-                      <th style="min-width: 80px;">Cupos</th>
-                      <th style="min-width: 160px;">Centro</th>
-                      <th style="min-width: 90px;">Grupo</th>
+                      <th style="min-width: 120px;">Programa especial</th>
+                      <th style="min-width: 120px;">Convenio</th>
+                      <th style="min-width: 160px;">Modalidad</th>
+                      <th style="min-width: 120px;">Centro de Formacion</th>
+                      <th style="min-width: 150px;">Acciones</th>
                     </tr>
                   </thead>
                   <tbody id="registroMetasTableBody">
-                    <tr><td colspan="8" class="text-center text-muted py-4">Sin metas registradas</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4">Sin filtros registrados</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -828,26 +872,43 @@
           <div class="col-12">
             <div class="card panel-card p-4">
               <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">Grupos creados</h5>
-                <button id="reloadGruposMetasBtn" class="btn btn-outline-secondary btn-sm" type="button">Actualizar grupos</button>
+                <h5 class="mb-0">Metas creadas</h5>
+                <button id="reloadGruposMetasBtn" class="btn btn-outline-secondary btn-sm" type="button">Actualizar metas</button>
               </div>
               <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle mb-0 table-catalog">
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Nombre del grupo</th>
-                      <th>Cantidad metas</th>
+                      <th>Nombre de la meta</th>
+                      <th>Filtros</th>
                       <th>Total cupos</th>
                       <th>Fecha creación</th>
+                      <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody id="gruposMetasTableBody">
-                    <tr><td colspan="5" class="text-center text-muted py-4">Sin grupos creados</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted py-4">Sin metas creadas</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="metaDetalleModal" class="meta-detalle-modal" aria-hidden="true">
+        <div class="meta-detalle-backdrop"></div>
+        <div class="meta-detalle-dialog">
+          <div class="meta-detalle-content card panel-card p-4">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+              <div>
+                <h5 id="metaDetalleTitle" class="mb-1">Detalle de la meta</h5>
+                <p class="text-muted mb-0">Meta ID: <strong id="metaDetalleGrupoId">—</strong></p>
+              </div>
+              <button id="metaDetalleCloseBtn" type="button" class="btn btn-outline-secondary btn-sm">Cerrar</button>
+            </div>
+            <div id="metaDetalleBody"></div>
           </div>
         </div>
       </div>
@@ -1041,5 +1102,6 @@
     </div>
 
     <script src="seguimiento_metas.js"></script>
+    <script src="seguimiento_metas_registro.js"></script>
   </body>
 </html>

@@ -99,7 +99,7 @@ let activeSearch = '';
 let lastSearchSource = '';
 let lastTotalCount = 0;
 let pollIntervalId = null;
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = 'http://127.0.0.1:8001';
 
 function applyTheme(mode){
   const isDark = mode === 'dark';

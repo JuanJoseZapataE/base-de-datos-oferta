@@ -1,4 +1,4 @@
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = 'http://127.0.0.1:8001';
 
 function escapeHtml(v) {
   if (v === null || v === undefined) return '';
@@ -55,9 +55,9 @@ function renderCatalogo(rows) {
       <td><strong>${escapeHtml(row.cod_ver)}</strong></td>
       <td>${escapeHtml(row.prf_denominacion)}</td>
       <td>${escapeHtml(row.nivel_de_formacion)}</td>
-      <td>${escapeHtml(row.prf_duracion_maxima || '—')}</td>
-      <td>${escapeHtml(row.prf_dur_etapa_lectiva || '—')}</td>
-      <td>${escapeHtml(row.prf_dur_etapa_prod || '—')}</td>
+      <td>${escapeHtml(row.prf_duracion_maxima || 'ÔÇö')}</td>
+      <td>${escapeHtml(row.prf_dur_etapa_lectiva || 'ÔÇö')}</td>
+      <td>${escapeHtml(row.prf_dur_etapa_prod || 'ÔÇö')}</td>
       <td><small><span class="badge ${row.tipo_programa ? 'bg-info' : 'bg-secondary'}">${escapeHtml(row.tipo_programa || 'Sin asignar')}</span></small></td>
     </tr>
   `).join('');
@@ -109,7 +109,7 @@ async function loadCatalogo(page = 1) {
             const opt = document.createElement('option'); opt.value = v; opt.textContent = v; nivelSelect.appendChild(opt);
           }
         });
-        // si el usuario ya tenía un valor seleccionado, mantenerlo si existe
+        // si el usuario ya ten├¡a un valor seleccionado, mantenerlo si existe
         const prev = (selectedNivel || '');
         if (prev) { nivelSelect.value = prev; }
       }
@@ -118,7 +118,7 @@ async function loadCatalogo(page = 1) {
     // Renderizar items tal cual vienen del servidor (server-side paging)
     renderCatalogo(items);
 
-    // mostrar total real de la base de datos (no el tamaño de la página)
+    // mostrar total real de la base de datos (no el tama├▒o de la p├ígina)
     const total = Number.isFinite(Number(data?.total)) ? Number(data.total) : 0;
     const totalEl = document.getElementById('catalogoTotal');
     if (totalEl) totalEl.textContent = String(total);
@@ -202,7 +202,7 @@ async function uploadCatalogoExcel() {
   }
 }
 
-// ===== MINI MÓDULO: AGREGAR PROGRAMAS EN CATÁLOGO =====
+// ===== MINI M├ôDULO: AGREGAR PROGRAMAS EN CAT├üLOGO =====
 
 function showAgregarProgramasStatus(message, type = 'secondary') {
   const el = document.getElementById('agregarProgramasStatus');
@@ -249,7 +249,7 @@ async function uploadAgregarProgramas() {
 
   try {
     setAgregarProgramasProgress(10);
-    showAgregarProgramasStatus('Procesando códigos...', 'info');
+    showAgregarProgramasStatus('Procesando c├│digos...', 'info');
     
     const resp = await fetch(`${API_BASE}/catalogo/agregar-programas`, {
       method: 'POST',
@@ -265,7 +265,7 @@ async function uploadAgregarProgramas() {
     }
     
     setAgregarProgramasProgress(100);
-    const message = `✓ Completado: ${data.updated} programas actualizados, ${data.not_found} no encontrados. Tipo: ${escapeHtml(data.tipo_programa)}.`;
+    const message = `Ô£ô Completado: ${data.updated} programas actualizados, ${data.not_found} no encontrados. Tipo: ${escapeHtml(data.tipo_programa)}.`;
     showAgregarProgramasStatus(message, 'success');
     
     input.value = '';
@@ -316,40 +316,40 @@ function renderRegistroTable(rows) {
 
   tbody.innerHTML = rows.map((row) => `
     <tr>
-      <td><small>${escapeHtml(row.id || '—')}</small></td>
-      <td><small>${escapeHtml(row.proceso || '—')}</small></td>
-      <td><small>${escapeHtml(row.tipo_tramite || '—')}</small></td>
-      <td><small>${row.fecha_radicado ? new Date(row.fecha_radicado).toLocaleDateString('es-CO') : '—'}</small></td>
-      <td><small>${escapeHtml(row.numero_resolucion || '—')}</small></td>
-      <td><small>${row.fecha_resolucion ? new Date(row.fecha_resolucion).toLocaleDateString('es-CO') : '—'}</small></td>
-      <td><small>${escapeHtml(row.resuelve || '—')}</small></td>
-      <td><small>${escapeHtml(row.decreto_ampara || '—')}</small></td>
-      <td><small>${escapeHtml(row.snies || '—')}</small></td>
-      <td><small>${escapeHtml(row.cobertura || '—')}</small></td>
-      <td><small>${escapeHtml(row.resolucion_ampara_programa || '—')}</small></td>
-      <td><small>${escapeHtml(row.resolucion_ampara || '—')}</small></td>
-      <td><small>${escapeHtml(row.resolucion_ampara_fecha || '—')}</small></td>
-      <td><small>${row.fecha_vencimiento ? new Date(row.fecha_vencimiento).toLocaleDateString('es-CO') : '—'}</small></td>
-      <td><small>${escapeHtml(row.vigencia_rc || '—')}</small></td>
-      <td><small>${escapeHtml(row.cod_programa || '—')}</small></td>
-      <td><small>${escapeHtml(row.version || '—')}</small></td>
-      <td><small><strong>${escapeHtml(row.nombre_programa || '—')}</strong></small></td>
-      <td><small>${escapeHtml(row.nivel_formacion || '—')}</small></td>
-      <td><small>${escapeHtml(row.red_conocimiento || '—')}</small></td>
-      <td><small>${escapeHtml(row.modalidad || '—')}</small></td>
-      <td><small>${escapeHtml(row.centro_formacion || '—')}</small></td>
-      <td><small>${escapeHtml(row.nombre_sede || '—')}</small></td>
-      <td><small>${escapeHtml(row.tipo_sede || '—')}</small></td>
-      <td><small>${escapeHtml(row.municipio || '—')}</small></td>
-      <td><small>${escapeHtml(row.lugar_desarrollo || '—')}</small></td>
-      <td><small>${escapeHtml(row.direccion || '—')}</small></td>
-      <td><small>${escapeHtml(row.regional || '—')}</small></td>
-      <td><small>${escapeHtml(row.nombre_regional || '—')}</small></td>
-      <td><small>${escapeHtml(row.observaciones || '—')}</small></td>
-      <td><small>${escapeHtml(row.clasificacion_tramite || '—')}</small></td>
-      <td><small>${escapeHtml(row.aprendices_primer_cohorte || '—')}</small></td>
-      <td><small>${escapeHtml(row.lugar_desarrollo_resolucion || '—')}</small></td>
-      <td><small>${row.fecha_registro ? new Date(row.fecha_registro).toLocaleDateString('es-CO') : '—'}</small></td>
+      <td><small>${escapeHtml(row.id || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.proceso || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.tipo_tramite || 'ÔÇö')}</small></td>
+      <td><small>${row.fecha_radicado ? new Date(row.fecha_radicado).toLocaleDateString('es-CO') : 'ÔÇö'}</small></td>
+      <td><small>${escapeHtml(row.numero_resolucion || 'ÔÇö')}</small></td>
+      <td><small>${row.fecha_resolucion ? new Date(row.fecha_resolucion).toLocaleDateString('es-CO') : 'ÔÇö'}</small></td>
+      <td><small>${escapeHtml(row.resuelve || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.decreto_ampara || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.snies || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.cobertura || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.resolucion_ampara_programa || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.resolucion_ampara || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.resolucion_ampara_fecha || 'ÔÇö')}</small></td>
+      <td><small>${row.fecha_vencimiento ? new Date(row.fecha_vencimiento).toLocaleDateString('es-CO') : 'ÔÇö'}</small></td>
+      <td><small>${escapeHtml(row.vigencia_rc || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.cod_programa || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.version || 'ÔÇö')}</small></td>
+      <td><small><strong>${escapeHtml(row.nombre_programa || 'ÔÇö')}</strong></small></td>
+      <td><small>${escapeHtml(row.nivel_formacion || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.red_conocimiento || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.modalidad || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.centro_formacion || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.nombre_sede || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.tipo_sede || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.municipio || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.lugar_desarrollo || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.direccion || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.regional || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.nombre_regional || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.observaciones || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.clasificacion_tramite || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.aprendices_primer_cohorte || 'ÔÇö')}</small></td>
+      <td><small>${escapeHtml(row.lugar_desarrollo_resolucion || 'ÔÇö')}</small></td>
+      <td><small>${row.fecha_registro ? new Date(row.fecha_registro).toLocaleDateString('es-CO') : 'ÔÇö'}</small></td>
     </tr>
   `).join('');
 }
@@ -427,7 +427,7 @@ async function uploadRegistroExcel() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // ===== INICIALIZACIÓN: Declarar todas las variables del DOM =====
+  // ===== INICIALIZACI├ôN: Declarar todas las variables del DOM =====
   const catalogoSection = document.getElementById('catalogoSection');
   const registroSection = document.getElementById('registroSection');
   const ofertaSection = document.getElementById('ofertaSection');
@@ -473,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (container) {
         container.classList.toggle('show');
         toggleBtn.textContent = container.classList.contains('show') ? 'Ocultar tabla' : 'Mostrar tabla';
-        // sincronizar visibilidad de la paginación
+        // sincronizar visibilidad de la paginaci├│n
         const pagNav = document.getElementById('catalogoPagination');
         if (pagNav) {
           pagNav.style.display = container.classList.contains('show') ? 'block' : 'none';
@@ -508,11 +508,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ===== FUNCIÓN ANTERIOR (DEPRECATED) - Reemplazada por toggles exclusivos =====
+  // ===== FUNCI├ôN ANTERIOR (DEPRECATED) - Reemplazada por toggles exclusivos =====
   // Las funciones syncSectionToggle y bindSectionToggle fueron reemplazadas por 
-  // la lógica de toggles exclusivos para mejor UX
+  // la l├│gica de toggles exclusivos para mejor UX
 
-  // ===== TOGGLES EXCLUSIVOS PARA SUBMÓDULOS DE SUBIDA =====
+  // ===== TOGGLES EXCLUSIVOS PARA SUBM├ôDULOS DE SUBIDA =====
   const submoduleButtons = {
     toggleSectionBtn: 'catalogoSection',
     toggleRegistroSection: 'registroSection',
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (button && section) {
       button.addEventListener('click', () => {
-        // Ocultar todos los demás submódulos
+        // Ocultar todos los dem├ís subm├│dulos
         Object.entries(submoduleButtons).forEach(([otherId, otherSectionId]) => {
           const otherBtn = document.getElementById(otherId);
           const otherSection = document.getElementById(otherSectionId);
@@ -541,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
         
-        // Mostrar el submódulo seleccionado
+        // Mostrar el subm├│dulo seleccionado
         section.style.display = 'block';
         button.classList.add('active');
         button.setAttribute('aria-pressed', 'true');
@@ -585,10 +585,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Cargar datos de Registro Calificado automáticamente al cargar la página
+  // Cargar datos de Registro Calificado autom├íticamente al cargar la p├ígina
   loadRegistroData();
 
-  // ===== MÓDULO SEGUIMIENTO METAS: OFERTA =====
+  // ===== M├ôDULO SEGUIMIENTO METAS: OFERTA =====
   function renderOfertaTable(rows) {
     const tbody = document.getElementById('ofertaTableBody');
     if (!tbody) return;
@@ -623,7 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </tr>
     `).join('');
 
-    // Añadir listeners a botones de editar
+    // A├▒adir listeners a botones de editar
     Array.from(document.getElementsByClassName('editVerBtn')).forEach(btn => {
       btn.removeEventListener('click', handleEditVerClick);
       btn.addEventListener('click', handleEditVerClick);
@@ -634,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const id = e.currentTarget.getAttribute('data-id');
     if (!id) return;
     const current = e.currentTarget.closest('tr')?.querySelectorAll('td')[18]?.textContent || '';
-    const newVal = prompt('Establece verificado: (VERIFICADO / NO VERIFICADO / VERIFICACION MANUAL / REGISTRO VENCIDO). Dejar vacío para NULL', current.trim() || '');
+    const newVal = prompt('Establece verificado: (VERIFICADO / NO VERIFICADO / VERIFICACION MANUAL / REGISTRO VENCIDO). Dejar vac├¡o para NULL', current.trim() || '');
     if (newVal === null) return; // cancel
     const upper = newVal.trim().toUpperCase();
     const normalized = upper === '' ? null : (upper === 'VERIFICADO' ? 'VERIFICADO' : upper === 'VERIFICACION MANUAL' ? 'VERIFICACION MANUAL' : upper === 'REGISTRO VENCIDO' ? 'REGISTRO VENCIDO' : 'NO VERIFICADO');
@@ -762,12 +762,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tbody.innerHTML = rows.map((row) => `
       <tr>
-        <td><small>${escapeHtml(row.id || '—')}</small></td>
-        <td><small>${escapeHtml(row.nombre_real_institucion || '—')}</small></td>
-        <td><small>${escapeHtml(row.nombres_sofia_plus || '—')}</small></td>
-        <td><small>${escapeHtml(row.municipio || '—')}</small></td>
-        <td><small>${escapeHtml(row.clasificacion || '—')}</small></td>
-        <td><small>${row.fecha_registro ? new Date(row.fecha_registro).toLocaleDateString('es-CO') : '—'}</small></td>
+        <td><small>${escapeHtml(row.id || 'ÔÇö')}</small></td>
+        <td><small>${escapeHtml(row.nombre_real_institucion || 'ÔÇö')}</small></td>
+        <td><small>${escapeHtml(row.nombres_sofia_plus || 'ÔÇö')}</small></td>
+        <td><small>${escapeHtml(row.municipio || 'ÔÇö')}</small></td>
+        <td><small>${escapeHtml(row.clasificacion || 'ÔÇö')}</small></td>
+        <td><small>${row.fecha_registro ? new Date(row.fecha_registro).toLocaleDateString('es-CO') : 'ÔÇö'}</small></td>
       </tr>
     `).join('');
   }
@@ -790,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderConsolidadoTable(items);
 
       if (total === 0) {
-        showConsolidadoStatus('Sin registros aún', 'warning');
+        showConsolidadoStatus('Sin registros a├║n', 'warning');
       } else {
         showConsolidadoStatus(`✓ ${total} registros cargados`, 'success');
       }
@@ -858,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cargar Consolidado Colegios inicialmente
   loadConsolidadoData();
 
-  // ===== FUNCIONES DE EXPORTACIÓN A EXCEL =====
+  // ===== FUNCIONES DE EXPORTACI├ôN A EXCEL =====
   
   function downloadExcel(url, filename) {
     fetch(url)
@@ -884,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
 
-  // Event listeners para botones de exportación
+  // Event listeners para botones de exportaci├│n
   document.getElementById('exportCatalogoBtn')?.addEventListener('click', () => {
     downloadExcel(`${API_BASE}/catalogo/exportar-excel`, 'catalogo.xlsx');
   });
@@ -1071,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Toggle para "Seguimiento a las Metas" - Muestra/Oculta el nuevo módulo
+  // Toggle para "Seguimiento a las Metas" - Muestra/Oculta el nuevo m├│dulo
   if (toggleSeguimientoMetasBtn && seguimientoMetasSection) {
     toggleSeguimientoMetasBtn.addEventListener('click', () => {
       hideAllMainModuleSections();
@@ -1097,11 +1097,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ===== FUNCIONES PARA EL NUEVO MÓDULO "SEGUIMIENTO A LAS METAS" =====
+  // ===== FUNCIONES PARA EL NUEVO M├ôDULO "SEGUIMIENTO A LAS METAS" =====
   
   window.loadMetasPorCumplir = function() {
     showStatus('Cargando metas por cumplir...', 'info');
-    // Placeholder - Se expandirá cuando el backend esté listo
+    // Placeholder - Se expandir├í cuando el backend est├® listo
     setTimeout(() => {
       showStatus('Funcionalidad en desarrollo', 'warning');
     }, 1000);
@@ -1109,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.loadMetasCumplidas = function() {
     showStatus('Cargando metas cumplidas...', 'info');
-    // Placeholder - Se expandirá cuando el backend esté listo
+    // Placeholder - Se expandir├í cuando el backend est├® listo
     setTimeout(() => {
       showStatus('Funcionalidad en desarrollo', 'warning');
     }, 1000);
@@ -1117,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.loadAvanceGeneral = function() {
     showStatus('Cargando avance general...', 'info');
-    // Placeholder - Se expandirá cuando el backend esté listo
+    // Placeholder - Se expandir├í cuando el backend est├® listo
     setTimeout(() => {
       showStatus('Funcionalidad en desarrollo', 'warning');
     }, 1000);
@@ -1155,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (statusEl) {
-        statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">✅ ${data.message || 'Archivo cargado exitosamente'}</div>`;
+        statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">✓ ${data.message || 'Archivo cargado exitosamente'}</div>`;
       }
 
       fileInput.value = '';
@@ -1164,7 +1164,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 500);
     } catch (error) {
       const statusEl = document.getElementById('seguimientoMetasStatus');
-      if (statusEl) statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">❌ Error: ${error.message}</div>`;
+      if (statusEl) statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${error.message}</div>`;
     }
   });
 
@@ -1184,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ===== FUNCIONES PARA PE_04 (MINI MÓDULO) =====
+  // ===== FUNCIONES PARA PE_04 (MINI M├ôDULO) =====
 
   async function loadPe04Data() {
     try {
@@ -1209,7 +1209,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       tbody.innerHTML = items.map((row) => {
-        // Determinar color de badge según clasificación
+        // Determinar color de badge seg├║n clasificaci├│n
         let badgeClass = 'bg-secondary';
         const clasificacion = (row.clasificacion_programa_especial || 'NA').toUpperCase();
         
@@ -1226,24 +1226,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
           <tr>
             <td>${escapeHtml(row.id)}</td>
-            <td>${escapeHtml(row.centro_formacion || '—')}</td>
+            <td>${escapeHtml(row.centro_formacion || 'ÔÇö')}</td>
             <td><span class="badge ${badgeClass}">${escapeHtml(row.clasificacion_programa_especial || 'NA')}</span></td>
-            <td>${escapeHtml(row.numero_ficha || '—')}</td>
-            <td>${escapeHtml(row.ciudad_municipio || '—')}</td>
-            <td>${escapeHtml(row.fecha_inicio || '—')}</td>
-            <td>${escapeHtml(row.fecha_fin || '—')}</td>
-            <td>${escapeHtml(row.nivel_formacion || '—')}</td>
-            <td>${escapeHtml(row.denominacion_programa || '—')}</td>
-            <td>${escapeHtml(row.estrategia_programa || '—')}</td>
-            <td>${escapeHtml(row.convenio || '—')}</td>
-            <td>${escapeHtml(row.cupos || '—')}</td>
-            <td>${escapeHtml(row.aprendices_activos || '—')}</td>
-            <td>${escapeHtml(row.certificado || '—')}</td>
-            <td>${escapeHtml(row.tipo_formacion || '—')}</td>
-            <td>${escapeHtml(row.modalidad_formacion || '—')}</td>
-            <td>${escapeHtml(row.estado_curso || '—')}</td>
-            <td>${escapeHtml(row.fecha_corte || '—')}</td>
-            <td><small>${escapeHtml(row.fecha_carga || '—')}</small></td>
+            <td>${escapeHtml(row.numero_ficha || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.ciudad_municipio || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.fecha_inicio || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.fecha_fin || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.nivel_formacion || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.denominacion_programa || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.estrategia_programa || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.convenio || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.cupos || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.aprendices_activos || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.certificado || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.tipo_formacion || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.modalidad_formacion || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.estado_curso || 'ÔÇö')}</td>
+            <td>${escapeHtml(row.fecha_corte || 'ÔÇö')}</td>
+            <td><small>${escapeHtml(row.fecha_carga || 'ÔÇö')}</small></td>
           </tr>
         `;
       }).join('');
@@ -1284,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (statusEl) {
-        statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">✅ ${data.message || 'Archivo cargado exitosamente'}</div>`;
+        statusEl.innerHTML = `<div class="alert alert-success py-2 mb-0">Ô£à ${data.message || 'Archivo cargado exitosamente'}</div>`;
       }
 
       fileInput.value = '';
@@ -1297,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 500);
     } catch (error) {
       const statusEl = document.getElementById('pe04Status');
-      if (statusEl) statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">❌ Error: ${error.message}</div>`;
+      if (statusEl) statusEl.innerHTML = `<div class="alert alert-danger py-2 mb-0">ÔØî Error: ${error.message}</div>`;
     }
   }
 
@@ -1382,12 +1382,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cargar datos de PE_04 al iniciar si existen
   loadPe04Data();
 
-  // ===== MÓDULO REGISTRO METAS =====
+  // ===== M├ôDULO REGISTRO METAS =====
 
   const CENTROS_LABELS = {
     '9308': '9308 - CENTRO DE COMERCIO Y SERVICIOS',
     '9121': '9121 - CENTRO ATENCION SECTOR AGROPECUARIO',
-    '9223': '9223 - CENTRO DE DISEÑO E INNOVACIÓN TECNOLÓGICA INDUSTRIAL'
+    '9223': '9223 - CENTRO DE DISE├æO E INNOVACI├ôN TECNOL├ôGICA INDUSTRIAL'
   };
 
   function showRegistroMetaFormStatus(message, type = 'secondary') {
@@ -1402,8 +1402,16 @@ document.addEventListener('DOMContentLoaded', () => {
     el.innerHTML = `<div class="alert alert-${type} py-2 mb-0">${escapeHtml(message)}</div>`;
   }
 
+  let registroMetasCache = [];
+  let gruposMetasCache = [];
+
   function isNumericFieldValue(value) {
     return /^\d+$/.test(String(value || '').trim());
+  }
+
+  function isNumericList(value) {
+  if (!value) return true;
+  return /^\d+(\s*[,;\n]\s*\d+)*$/.test(String(value).trim());
   }
 
   function bindNumericOnlyInput(inputId) {
@@ -1414,7 +1422,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  ['metaCodigoNivelFormacion', 'metaCodigoProgramaEspecial', 'metaCodigoConvenio', 'metaCupos'].forEach(bindNumericOnlyInput);
+  ['metaCodigoNivelFormacion', 'metaCupos']
+  .forEach(bindNumericOnlyInput);
 
   function getSelectedMetaIds() {
     return Array.from(document.querySelectorAll('.meta-select-checkbox:checked'))
@@ -1436,10 +1445,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (totalEl) totalEl.textContent = String(rows.length);
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Sin metas registradas</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Sin filtros registrados</td></tr>';
       updateCrearGrupoButtonState();
       return;
     }
+
+    console.log(rows[0]);
 
     tbody.innerHTML = rows.map((row) => {
       const enGrupo = row.grupo_id ? true : false;
@@ -1453,15 +1464,22 @@ document.addEventListener('DOMContentLoaded', () => {
               value="${row.id}"
               ${enGrupo ? 'disabled title="Ya pertenece a un grupo"' : ''}
               style="width:22px; height:22px; border:2px solid #444; border-radius:4px; cursor:pointer; box-shadow:0 0 2px rgba(0,0,0,.4);"
-              >I
+            >
           </td>
           <td><strong>${row.id}</strong></td>
           <td>${escapeHtml(row.nombre_meta)}</td>
           <td>${escapeHtml(row.tipo_formacion)}</td>
+          <td>${escapeHtml(row.codigo_nivel_formacion)}</td>
+          <td>${escapeHtml(row.codigo_programa_especial)}</td>
+          <td>${escapeHtml(row.codigo_convenio)}</td>
           <td><span class="badge bg-info">${escapeHtml(row.tipo_modalidad)}</span></td>
-          <td><strong>${row.meta_cupos || 0}</strong></td>
           <td><small>${escapeHtml(centroLabel)}</small></td>
           <td>${row.grupo_id ? `<span class="badge bg-primary">Grupo ${row.grupo_id}</span>` : '<span class="text-muted">—</span>'}</td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+              <button type="button" class="btn btn-sm btn-outline-danger registro-meta-action" data-action="delete" data-id="${row.id}">Eliminar</button>
+            </div>
+          </td>
         </tr>
       `;
     }).join('');
@@ -1480,9 +1498,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!resp.ok) {
         throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
       }
-      renderRegistroMetasTable(Array.isArray(data?.items) ? data.items : []);
+      registroMetasCache = Array.isArray(data?.items) ? data.items : [];
+      renderRegistroMetasTable(registroMetasCache);
       showRegistroMetasGrupoStatus(`Se cargaron ${data?.total || 0} metas.`, 'success');
     } catch (error) {
+      registroMetasCache = [];
       renderRegistroMetasTable([]);
       showRegistroMetasGrupoStatus(`Error al cargar metas: ${error.message}`, 'danger');
     }
@@ -1493,7 +1513,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!tbody) return;
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Sin grupos creados</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Sin metas creadas</td></tr>';
       return;
     }
 
@@ -1504,6 +1524,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${row.cantidad_metas || 0}</td>
         <td><span class="badge bg-success">${row.total_cupos || 0}</span></td>
         <td><small>${escapeHtml(row.fecha_creacion || '—')}</small></td>
+        <td>
+          <div class="d-flex flex-wrap gap-1">
+            <button type="button" class="btn btn-sm btn-outline-danger grupo-meta-action" data-action="delete" data-id="${row.id}">Eliminar</button>
+          </div>
+        </td>
       </tr>
     `).join('');
   }
@@ -1515,9 +1540,69 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!resp.ok) {
         throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
       }
-      renderGruposMetasTable(Array.isArray(data?.items) ? data.items : []);
+      gruposMetasCache = Array.isArray(data?.items) ? data.items : [];
+      renderGruposMetasTable(gruposMetasCache);
     } catch (error) {
+      gruposMetasCache = [];
       renderGruposMetasTable([]);
+    }
+  }
+
+  async function eliminarFiltroMeta(id) {
+    if (!window.confirm('¿Deseas eliminar este filtro?')) return;
+    try {
+      showRegistroMetaFormStatus('Eliminando filtro...', 'info');
+      const resp = await fetch(`${API_BASE}/registro-metas/filtros/${id}`, { method: 'DELETE' });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+      }
+      showRegistroMetaFormStatus(`Filtro ${id} eliminado.`, 'success');
+      await loadRegistroMetasList();
+      await loadGruposMetasList();
+    } catch (error) {
+      showRegistroMetaFormStatus(`Error al eliminar filtro: ${error.message}`, 'danger');
+    }
+  }
+
+  async function eliminarGrupoMeta(id) {
+    if (!window.confirm('¿Deseas eliminar esta meta? Los filtros quedarán sin meta asociada.')) return;
+    try {
+      showRegistroMetasGrupoStatus('Eliminando meta...', 'info');
+      const resp = await fetch(`${API_BASE}/registro-metas/grupos/${id}`, { method: 'DELETE' });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+      }
+      showRegistroMetasGrupoStatus(`Meta ${id} eliminada.`, 'success');
+      await loadRegistroMetasList();
+      await loadGruposMetasList();
+    } catch (error) {
+      showRegistroMetasGrupoStatus(`Error al eliminar meta: ${error.message}`, 'danger');
+    }
+  }
+
+  async function eliminarTodoRegistroMetas() {
+    if (!window.confirm('¿Deseas eliminar TODO lo registrado en metas y filtros? Esta acción no se puede deshacer.')) return;
+    try {
+      showRegistroMetasGrupoStatus('Eliminando todo el registro de metas...', 'info');
+      const resp = await fetch(`${API_BASE}/registro-metas/delete-all`, { method: 'DELETE' });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+      }
+      showRegistroMetasGrupoStatus(
+        `Se eliminó todo el registro: ${data.deleted_filters || 0} filtros y ${data.deleted_groups || 0} metas.`,
+        'success'
+      );
+      document.getElementById('registroMetaForm')?.reset();
+      document.getElementById('nombreGrupoMetas') && (document.getElementById('nombreGrupoMetas').value = '');
+      const selectAll = document.getElementById('selectAllMetasCheckbox');
+      if (selectAll) selectAll.checked = false;
+      await loadRegistroMetasList();
+      await loadGruposMetasList();
+    } catch (error) {
+      showRegistroMetasGrupoStatus(`Error al eliminar todo: ${error.message}`, 'danger');
     }
   }
 
@@ -1530,7 +1615,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const codigoConvenio = document.getElementById('metaCodigoConvenio')?.value.trim();
     const tipoModalidad = document.getElementById('metaTipoModalidad')?.value.trim();
     const nombreMeta = document.getElementById('metaNombre')?.value.trim();
-    const metaCupos = document.getElementById('metaCupos')?.value.trim();
     const codigoCentro = document.getElementById('metaCentroFormacion')?.value.trim();
 
     if (!tipoFormacion || !tipoModalidad || !nombreMeta || !codigoCentro) {
@@ -1538,8 +1622,27 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (![codigoNivel, codigoPrograma, codigoConvenio, metaCupos].every(isNumericFieldValue)) {
-      showRegistroMetaFormStatus('Los campos numéricos solo deben contener números.', 'warning');
+    if (!isNumericFieldValue(codigoNivel)) {
+      showRegistroMetaFormStatus(
+        'El código de nivel de formación solo puede contener números.',
+        'warning'
+        );
+        return;
+    }
+
+    if (!isNumericList(codigoPrograma)) {
+      showRegistroMetaFormStatus(
+        'Los códigos de programa especial deben ser números separados por comas, punto y coma o saltos de línea.',
+        'warning'
+      );
+      return;
+    }
+
+    if (!isNumericList(codigoConvenio)) {
+      showRegistroMetaFormStatus(
+        'Los códigos de convenio deben ser números separados por comas, punto y coma o saltos de línea.',
+        'warning'
+      );
       return;
     }
 
@@ -1550,7 +1653,6 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('codigo_convenio', codigoConvenio);
     formData.append('tipo_modalidad', tipoModalidad);
     formData.append('nombre_meta', nombreMeta);
-    formData.append('meta_cupos', metaCupos);
     formData.append('codigo_centro', codigoCentro);
     formData.append('centro_formacion', CENTROS_LABELS[codigoCentro] || codigoCentro);
 
@@ -1570,47 +1672,91 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function crearGrupoMetas() {
-    const selectedIds = getSelectedMetaIds();
-    if (!selectedIds.length) {
-      showRegistroMetasGrupoStatus('Selecciona al menos una meta para crear el grupo.', 'warning');
-      return;
-    }
-
-    const nombreGrupo = (document.getElementById('nombreGrupoMetas')?.value || '').trim();
-    if (!nombreGrupo) {
-      showRegistroMetasGrupoStatus('Escribe un nombre para el grupo.', 'warning');
-      return;
-    }
-
-    try {
-      showRegistroMetasGrupoStatus('Creando grupo...', 'info');
-      const resp = await fetch(`${API_BASE}/registro-metas/crear-grupo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre_grupo: nombreGrupo, meta_ids: selectedIds })
-      });
-      const data = await resp.json().catch(() => null);
-      if (!resp.ok) {
-        throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
-      }
-      showRegistroMetasGrupoStatus(
-        `Grupo "${nombreGrupo}" creado. Metas: ${data.cantidad_metas}, total cupos: ${data.total_cupos}.`,
-        'success'
-      );
-      document.getElementById('nombreGrupoMetas').value = '';
-      const selectAll = document.getElementById('selectAllMetasCheckbox');
-      if (selectAll) selectAll.checked = false;
-      await loadRegistroMetasList();
-      await loadGruposMetasList();
-    } catch (error) {
-      showRegistroMetasGrupoStatus(`Error al crear grupo: ${error.message}`, 'danger');
-    }
+  const selectedIds = getSelectedMetaIds();
+  if (!selectedIds.length) {
+    showRegistroMetasGrupoStatus('Selecciona al menos una meta para crear el grupo.', 'warning');
+    return;
   }
+
+  const nombreGrupo = (document.getElementById('nombreGrupoMetas')?.value || '').trim();
+  if (!nombreGrupo) {
+    showRegistroMetasGrupoStatus('Escribe un nombre para el grupo.', 'warning');
+    return;
+  }
+
+  const totalCupos = parseInt(
+    document.getElementById('metaTotalCupos')?.value || '',
+    10
+  );
+
+  if (isNaN(totalCupos) || totalCupos < 0) {
+    showRegistroMetasGrupoStatus('El total de cupos debe ser un número válido.', 'warning');
+    return;
+  }
+
+  try {
+    showRegistroMetasGrupoStatus('Creando grupo...', 'info');
+
+    const resp = await fetch(`${API_BASE}/registro-metas/crear-grupo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre_grupo: nombreGrupo,
+        total_cupos: totalCupos,
+        meta_ids: selectedIds
+      })
+    });
+
+    const data = await resp.json().catch(() => null);
+
+    if (!resp.ok) {
+      throw new Error(data?.detail || `${resp.status} ${resp.statusText}`);
+    }
+
+    showRegistroMetasGrupoStatus(
+      `Grupo "${nombreGrupo}" creado. Metas: ${data.cantidad_metas}, total cupos: ${data.total_cupos}.`,
+      'success'
+    );
+
+    document.getElementById('nombreGrupoMetas').value = '';
+    document.getElementById('metaTotalCupos').value = '';
+
+    const selectAll = document.getElementById('selectAllMetasCheckbox');
+    if (selectAll) selectAll.checked = false;
+
+    await loadRegistroMetasList();
+    await loadGruposMetasList();
+
+  } catch (error) {
+    showRegistroMetasGrupoStatus(`Error al crear grupo: ${error.message}`, 'danger');
+  }
+}
 
   document.getElementById('registroMetaForm')?.addEventListener('submit', submitRegistroMeta);
   document.getElementById('reloadRegistroMetasBtn')?.addEventListener('click', loadRegistroMetasList);
   document.getElementById('reloadGruposMetasBtn')?.addEventListener('click', loadGruposMetasList);
   document.getElementById('crearGrupoMetasBtn')?.addEventListener('click', crearGrupoMetas);
+  document.getElementById('deleteAllRegistroMetasBtn')?.addEventListener('click', eliminarTodoRegistroMetas);
+
+  document.getElementById('registroMetasTableBody')?.addEventListener('click', (event) => {
+    const button = event.target.closest('button.registro-meta-action');
+    if (!button) return;
+    const action = button.getAttribute('data-action');
+    const id = Number(button.getAttribute('data-id'));
+    if (action === 'delete') {
+      eliminarFiltroMeta(id);
+    }
+  });
+
+  document.getElementById('gruposMetasTableBody')?.addEventListener('click', (event) => {
+    const button = event.target.closest('button.grupo-meta-action');
+    if (!button) return;
+    const action = button.getAttribute('data-action');
+    const id = Number(button.getAttribute('data-id'));
+    if (action === 'delete') {
+      eliminarGrupoMeta(id);
+    }
+  });
 
   document.getElementById('selectAllMetasCheckbox')?.addEventListener('change', (event) => {
     const checked = event.target.checked;

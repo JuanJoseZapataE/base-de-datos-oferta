@@ -15,7 +15,7 @@ async function loadFicha(){
   if(!id){ setStatus('No se recibió cod_ficha en la URL'); return; }
   setStatus('Cargando ficha...');
   try{
-    const base = document.getElementById('apiBase') ? document.getElementById('apiBase').value.replace(/\/+$/,'') : 'http://127.0.0.1:8000';
+    const base = document.getElementById('apiBase') ? document.getElementById('apiBase').value.replace(/\/+$/,'') : 'http://127.0.0.1:8001';
     const resp = await fetch(base + '/fichas/' + encodeURIComponent(id));
     if(!resp.ok){ const d = await resp.json(); throw new Error(d.detail || resp.statusText); }
     const data = await resp.json();
@@ -72,7 +72,7 @@ async function saveFicha(e){
   });
   // No enviar cod_ficha en el payload (pk), backend lo toma de la URL
   delete body.cod_ficha;
-  const base = document.getElementById('apiBase') ? document.getElementById('apiBase').value.replace(/\/+$/,'') : 'http://127.0.0.1:8000';
+  const base = document.getElementById('apiBase') ? document.getElementById('apiBase').value.replace(/\/+$/,'') : 'http://127.0.0.1:8001';
   setStatus('Guardando...');
   try{
     const resp = await fetch(base + '/fichas/' + encodeURIComponent(id), { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
@@ -87,6 +87,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const form = document.getElementById('editForm');
   form.addEventListener('submit', saveFicha);
   // inject a hidden apiBase input so edit page uses same base as index if present
-  const baseInput = document.createElement('input'); baseInput.type='hidden'; baseInput.id='apiBase'; baseInput.value = 'http://127.0.0.1:8000'; document.body.appendChild(baseInput);
+  const baseInput = document.createElement('input'); baseInput.type='hidden'; baseInput.id='apiBase'; baseInput.value = 'http://127.0.0.1:8001'; document.body.appendChild(baseInput);
   loadFicha();
 });
