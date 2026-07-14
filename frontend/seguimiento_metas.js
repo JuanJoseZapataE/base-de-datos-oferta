@@ -55,9 +55,9 @@ function renderCatalogo(rows) {
       <td><strong>${escapeHtml(row.cod_ver)}</strong></td>
       <td>${escapeHtml(row.prf_denominacion)}</td>
       <td>${escapeHtml(row.nivel_de_formacion)}</td>
-      <td>${escapeHtml(row.prf_duracion_maxima || 'ÔÇö')}</td>
-      <td>${escapeHtml(row.prf_dur_etapa_lectiva || 'ÔÇö')}</td>
-      <td>${escapeHtml(row.prf_dur_etapa_prod || 'ÔÇö')}</td>
+      <td>${escapeHtml(row.prf_duracion_maxima || '---')}</td>
+      <td>${escapeHtml(row.prf_dur_etapa_lectiva || '---')}</td>
+      <td>${escapeHtml(row.prf_dur_etapa_prod || '---')}</td>
       <td><small><span class="badge ${row.tipo_programa ? 'bg-info' : 'bg-secondary'}">${escapeHtml(row.tipo_programa || 'Sin asignar')}</span></small></td>
     </tr>
   `).join('');
